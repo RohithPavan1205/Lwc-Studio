@@ -90,7 +90,7 @@ export default class HelloWorldTester extends LightningElement {
           <h3 className="font-bold mb-4 text-lg">Status: <span className={status === 'Success!' ? 'text-[#4caf50]' : status === 'Failed' ? 'text-[var(--error)]' : ''}>{status}</span></h3>
           {details && (
             <pre className="p-4 bg-black rounded text-[#4caf50] text-xs overflow-x-auto border border-[#4caf50] border-opacity-30">
-              {JSON.stringify(details, null, 2)}
+              {JSON.stringify(details, null, 2) as string}
             </pre>
           )}
         </div>

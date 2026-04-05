@@ -3,7 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST (_request: Request) {
+export async function POST () {
   try {
     const supabase = createClient();
     if (!supabase) return NextResponse.json({ error: 'Supabase client error' }, { status: 500 });

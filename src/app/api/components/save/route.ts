@@ -46,7 +46,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, updated_at: new Date().toISOString() });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('API Error:', err);
     return NextResponse.json({ error: 'Server Error' }, { status: 500 });
   }

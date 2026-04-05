@@ -159,8 +159,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Deployment Failed', details: errorMsg, status, processId }, { status: 400 });
     }
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Deploy crash:', err);
-    return NextResponse.json({ error: 'Server Crash', details: err.message }, { status: 500 });
+    const errorMessage = err instanceof Error ? err.message : 'Unknown Error';
+    return NextResponse.json({ error: 'Server Crash', details: errorMessage }, { status: 500 });
   }
 }

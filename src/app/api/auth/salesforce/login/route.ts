@@ -28,7 +28,7 @@ export async function GET() {
   authUrl.searchParams.append('response_type', 'code');
   authUrl.searchParams.append('code_challenge', challenge);
   authUrl.searchParams.append('code_challenge_method', 'S256');
-  authUrl.searchParams.append('scope', 'api refresh_token offline_access');
+  authUrl.searchParams.append('scope', 'api web refresh_token');
   authUrl.searchParams.append('prompt', 'login');
 
   return NextResponse.redirect(authUrl.toString());

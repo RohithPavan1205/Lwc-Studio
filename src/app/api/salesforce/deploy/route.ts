@@ -42,6 +42,10 @@ export async function POST(request: Request) {
         <members>*</members>
         <name>LightningComponentBundle</name>
     </types>
+    <types>
+        <members>*</members>
+        <name>AuraDefinitionBundle</name>
+    </types>
     <version>58.0</version>
 </Package>`);
 
@@ -62,6 +66,49 @@ export async function POST(request: Request) {
         <target>lightning__HomePage</target>
     </targets>
 </LightningComponentBundle>`);
+
+    // 3b. Create Universal Master Preview App (Singleton)
+    // Using a very unique name to prevent collisions with user LWCs
+    const auraAppName = 'LwcStudio_PreviewEngine'; 
+    const auraFolder = zip.folder(`aura/${auraAppName}`);
+    
+    if (auraFolder) {
+      auraFolder.file(`${auraAppName}.app`, `<aura:application access="GLOBAL" extends="force:slds">
+    <aura:attribute name="c__componentName" type="String" />
+    <aura:handler name="init" value="{!this}" action="{!c.doInit}"/>
+    
+    <div class="slds-p-around_medium">
+        {!v.body}
+    </div>
+</aura:application>`);
+
+      auraFolder.file(`${auraAppName}Controller.js`, `({
+    doInit: function(component, event, helper) {
+        var compName = component.get("v.c__componentName");
+        console.log('[Lwc-Studio] Preview Engine initializing:', compName);
+        
+        if (compName) {
+            $A.createComponent(
+                "c:" + compName, 
+                {}, 
+                function(newCmp, status, errorMessage) {
+                    if (status === "SUCCESS") {
+                        component.set("v.body", newCmp);
+                    } else {
+                        console.error("[Lwc-Studio] Failed to load [c:" + compName + "]: " + errorMessage);
+                    }
+                }
+            );
+        }
+    }
+})`);
+
+      auraFolder.file(`${auraAppName}.app-meta.xml`, `<?xml version="1.0" encoding="UTF-8"?>
+<AuraDefinitionBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>58.0</apiVersion>
+    <description>Universal LWC Studio Preview Engine (Singleton)</description>
+</AuraDefinitionBundle>`);
+    }
 
     // Generate Zip base64
     const zipBase64 = await zip.generateAsync({ type: 'base64' });
@@ -150,18 +197,25 @@ export async function POST(request: Request) {
       }
     }
 
+    // 6. Final Validation
     if (status === 'Succeeded') {
+      const successMatch = deployResultStr.match(/<success>false<\/success>/);
+      if (successMatch) {
+         const problemMatch = deployResultStr.match(/<problem>(.*?)<\/problem>/);
+         const errorMsg = problemMatch ? problemMatch[1] : 'Component Compilation Error (Check Salesforce Developer Console)';
+         return NextResponse.json({ error: 'Salesforce Compilation Error', details: errorMsg, status: 'Failed', processId }, { status: 400 });
+      }
+
       return NextResponse.json({ success: true, processId, status });
     } else {
-      // Parse out the error message if possible
       const problemMatch = deployResultStr.match(/<problem>(.*?)<\/problem>/);
-      const errorMsg = problemMatch ? problemMatch[1] : 'Unknown Deployment Error. Check Salesforce Deployment Status UI.';
+      const errorMsg = problemMatch ? problemMatch[1] : 'Deployment Failed. Check Deployment Status in Salesforce.';
       return NextResponse.json({ error: 'Deployment Failed', details: errorMsg, status, processId }, { status: 400 });
     }
 
   } catch (err: unknown) {
     console.error('Deploy crash:', err);
-    const errorMessage = err instanceof Error ? err.message : 'Unknown Error';
-    return NextResponse.json({ error: 'Server Crash', details: errorMessage }, { status: 500 });
+    const errorMessage = err instanceof Error ? err.message : 'Unknown Server Error';
+    return NextResponse.json({ error: 'Server Exception', details: errorMessage }, { status: 500 });
   }
 }

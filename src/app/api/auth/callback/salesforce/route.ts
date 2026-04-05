@@ -84,6 +84,9 @@ export async function GET(request: Request) {
       sfUserId = idParts[idParts.length - 1] || '';
     }
 
+    // Set initial expiry to 2 hours
+    const tokenExpiry = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
+
     const { error: dbError } = await supabase
       .from('salesforce_connections')
       .upsert({
@@ -93,6 +96,7 @@ export async function GET(request: Request) {
         instance_url,
         access_token,
         refresh_token,
+        token_expiry: tokenExpiry,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id' }); // Assuming unique user constraint
 

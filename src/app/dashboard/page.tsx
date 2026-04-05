@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import { logout } from '@/app/auth/actions';
+import { checkAndRefreshToken } from '@/utils/salesforce';
 
 export default async function DashboardPage({
   searchParams,
@@ -50,13 +51,30 @@ export default async function DashboardPage({
 
   // Check for Salesforce connection
   let sfConnection = null;
+  let sfOrgName = 'Connected Org';
   try {
     const { data } = await supabase
       .from('salesforce_connections')
       .select('instance_url, updated_at')
       .eq('user_id', user.id)
       .maybeSingle();
-    sfConnection = data;
+
+    if (data) {
+      sfConnection = data;
+      // Real-time access token check and refresh
+      const validToken = await checkAndRefreshToken(user.id);
+      if (validToken) {
+        // Fetch Org Name / Username
+        const userInfoResponse = await fetch(`${data.instance_url}/services/oauth2/userinfo`, {
+          headers: { Authorization: `Bearer ${validToken}` },
+          next: { revalidate: 3600 } // cache for an hour to avoid spamming SF API on every render
+        });
+        if (userInfoResponse.ok) {
+          const userInfo = await userInfoResponse.json();
+          sfOrgName = userInfo.organization_name || userInfo.name || 'Salesforce Org';
+        }
+      }
+    }
   } catch (err) {
     console.error('Error fetching sf_connection:', err);
   }
@@ -101,7 +119,7 @@ export default async function DashboardPage({
                   {sfConnection ? (
                     <p className="text-sm text-[#00a1e0] mt-1 flex items-center truncate">
                       <span className="w-2 h-2 rounded-full bg-[#00a1e0] mr-2"></span>
-                      Org Connected ■ {sfConnection.instance_url}
+                      {sfOrgName} ■ {sfConnection.instance_url}
                     </p>
                   ) : (
                     <p className="text-sm text-[var(--on-surface-variant)] mt-1">
@@ -110,10 +128,16 @@ export default async function DashboardPage({
                   )}
                 </div>
               </div>
-              {!sfConnection && (
+              {!sfConnection ? (
                 <form action="/api/auth/salesforce/login" method="GET" className="ml-4">
                   <button className="text-xs font-bold uppercase tracking-wide bg-[#00a1e0] text-white px-6 py-3 rounded hover:bg-opacity-90 transition-all shadow-lg flex-shrink-0">
                     Connect Org
+                  </button>
+                </form>
+              ) : (
+                <form action="/api/salesforce/disconnect" method="POST" className="ml-4">
+                  <button className="text-xs font-bold uppercase tracking-wide text-[var(--error)] border border-[var(--error)] border-opacity-30 px-6 py-3 rounded hover:bg-[var(--error)] hover:bg-opacity-10 transition-all flex-shrink-0">
+                    Disconnect Org
                   </button>
                 </form>
               )}

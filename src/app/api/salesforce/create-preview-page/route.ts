@@ -5,68 +5,84 @@ import JSZip from 'jszip';
 
 export async function POST(request: Request) {
   try {
-    const { componentName, htmlContent, jsContent, cssContent } = await request.json();
+    const { componentName } = await request.json();
 
-    if (!componentName || !jsContent) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!componentName) {
+      return NextResponse.json({ error: 'Missing componentName' }, { status: 400 });
     }
 
-    // Safely get user
     const supabase = createClient();
     if (!supabase) throw new Error('No Supabase client');
-    const { data: { user } } = await supabase.auth.getUser();
     
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const userId = user.id;
 
-    // 1. Get access token
     const token = await checkAndRefreshToken(userId);
     if (!token) {
-      return NextResponse.json({ error: 'Failed to retrieve valid Salesforce token. Org might be disconnected.' }, { status: 401 });
+      return NextResponse.json({ error: 'Salesforce token missing. Please reconnect.' }, { status: 401 });
     }
 
-    // Get instance URL
     const { data: conn } = await supabase.from('salesforce_connections').select('instance_url').eq('user_id', userId).single();
-    if (!conn) return NextResponse.json({ error: 'No connection found' }, { status: 404 });
+    if (!conn) return NextResponse.json({ error: 'No Salesforce connection found' }, { status: 404 });
 
-    // 2. Assemble LWC
     const zip = new JSZip();
     
-    // package.xml
     zip.file('package.xml', `<?xml version="1.0" encoding="UTF-8"?>
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
     <types>
-        <members>*</members>
-        <name>LightningComponentBundle</name>
+        <members>LwcPreviewApp_${componentName}</members>
+        <name>AuraDefinitionBundle</name>
+    </types>
+    <types>
+        <members>LwcPreviewPage_${componentName}</members>
+        <name>ApexPage</name>
     </types>
     <version>58.0</version>
 </Package>`);
 
-    const folder = zip.folder(`lwc/${componentName}`);
-    if (!folder) throw new Error('Zip folder creation failed');
-
-    if (htmlContent) folder.file(`${componentName}.html`, htmlContent);
-    if (cssContent) folder.file(`${componentName}.css`, cssContent);
-    folder.file(`${componentName}.js`, jsContent);
-    // 3. Create LightningComponentBundle meta
-    folder.file(`${componentName}.js-meta.xml`, `<?xml version="1.0" encoding="UTF-8"?>
-<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    // Aura App
+    const auraFolder = zip.folder(`aura/LwcPreviewApp_${componentName}`);
+    if (auraFolder) {
+      auraFolder.file(`LwcPreviewApp_${componentName}.app`, `<aura:application access="GLOBAL" extends="ltng:outApp">
+    <aura:dependency resource="c:${componentName}"/>
+</aura:application>`);
+      auraFolder.file(`LwcPreviewApp_${componentName}.app-meta.xml`, `<?xml version="1.0" encoding="UTF-8"?>
+<AuraDefinitionBundle xmlns="http://soap.sforce.com/2006/04/metadata">
     <apiVersion>58.0</apiVersion>
-    <isExposed>true</isExposed>
-    <targets>
-        <target>lightning__AppPage</target>
-        <target>lightning__RecordPage</target>
-        <target>lightning__HomePage</target>
-    </targets>
-</LightningComponentBundle>`);
+    <description>LWC Studio generated preview app</description>
+</AuraDefinitionBundle>`);
+    }
 
-    // Generate Zip base64
+    // VF Page
+    const pagesFolder = zip.folder('pages');
+    if (pagesFolder) {
+      pagesFolder.file(`LwcPreviewPage_${componentName}.page`, `<apex:page showHeader="false" sidebar="false" standardStylesheets="false">
+    <apex:includeLightning />
+    <div id="lightning" style="width:100%; height:100vh; overflow:auto; background:transparent;" />
+    <script>
+        $Lightning.use("c:LwcPreviewApp_${componentName}", function() {
+            $Lightning.createComponent("c:${componentName}", {}, "lightning", function(cmp) {
+                console.log("preview component loaded");
+            });
+        });
+    </script>
+</apex:page>`);
+      pagesFolder.file(`LwcPreviewPage_${componentName}.page-meta.xml`, `<?xml version="1.0" encoding="UTF-8"?>
+<ApexPage xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>58.0</apiVersion>
+    <availableInTouch>true</availableInTouch>
+    <confirmationTokenRequired>false</confirmationTokenRequired>
+    <label>LwcPreviewPage_${componentName}</label>
+</ApexPage>`);
+    }
+
     const zipBase64 = await zip.generateAsync({ type: 'base64' });
 
-    // 4. Call Deploy
+    // Call Deploy
     const deploySoap = `<?xml version="1.0" encoding="utf-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:met="http://soap.sforce.com/2006/04/metadata">
   <soapenv:Header>
@@ -104,16 +120,16 @@ export async function POST(request: Request) {
     const deployText = await deployRes.text();
     const idMatch = deployText.match(/<id>([a-zA-Z0-9]+)<\/id>/);
     if (!idMatch) {
-      console.error('Deploy request failed:', deployText);
-      return NextResponse.json({ error: 'Deploy failed to initiate', details: deployText }, { status: 500 });
+      console.error('Preview deploy failed:', deployText);
+      return NextResponse.json({ error: 'Deploy failed to initiate' }, { status: 500 });
     }
 
     const processId = idMatch[1];
     
-    // 5. Poll for status (max 30s)
+    // Poll for status
     let status = 'InProgress';
     let deployResultStr = '';
-    const MAX_POLL = 15; // 15 * 2s = 30s
+    const MAX_POLL = 15;
     for (let i = 0; i < MAX_POLL; i++) {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
@@ -134,10 +150,7 @@ export async function POST(request: Request) {
 
       const statusRes = await fetch(`${conn.instance_url}/services/Soap/m/58.0`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'text/xml',
-          'SOAPAction': 'checkDeployStatus'
-        },
+        headers: { 'Content-Type': 'text/xml', 'SOAPAction': 'checkDeployStatus' },
         body: statusSoap
       });
 
@@ -145,22 +158,20 @@ export async function POST(request: Request) {
       const statusMatch = deployResultStr.match(/<status>([a-zA-Z]+)<\/status>/);
       if (statusMatch) status = statusMatch[1];
 
-      if (status === 'Succeeded' || status === 'Failed' || status === 'Canceled') {
-        break;
-      }
+      if (status === 'Succeeded' || status === 'Failed' || status === 'Canceled') break;
     }
 
     if (status === 'Succeeded') {
-      return NextResponse.json({ success: true, processId, status });
+      const previewUrl = `${conn.instance_url}/apex/LwcPreviewPage_${componentName}`;
+      return NextResponse.json({ success: true, previewUrl });
     } else {
-      // Parse out the error message if possible
       const problemMatch = deployResultStr.match(/<problem>(.*?)<\/problem>/);
-      const errorMsg = problemMatch ? problemMatch[1] : 'Unknown Deployment Error. Check Salesforce Deployment Status UI.';
-      return NextResponse.json({ error: 'Deployment Failed', details: errorMsg, status, processId }, { status: 400 });
+      const errorMsg = problemMatch ? problemMatch[1] : 'Unknown Preview Deploy Error.';
+      return NextResponse.json({ error: 'Preview Deployment Failed', details: errorMsg }, { status: 400 });
     }
 
-  } catch (err: unknown) {
-    console.error('Deploy crash:', err);
-    return NextResponse.json({ error: 'Server Crash', details: err instanceof Error ? err.message : String(err) }, { status: 500 });
+  } catch (err: any) {
+    console.error('Preview crash:', err);
+    return NextResponse.json({ error: 'Server Crash', details: err.message }, { status: 500 });
   }
 }

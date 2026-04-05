@@ -15,13 +15,13 @@ let snippetsRegistered = false;
 
 export default function LwcEditor({ htmlCode, jsCode, cssCode, onChange }: LwcEditorProps) {
   const [activeTab, setActiveTab] = useState<TabType>('js');
-  const monaco = useMonaco();
-
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleEditorWillMount = (monacoInstance: any) => {
     // Only register snippets once to prevent duplicates during React hot reloads
     if (!snippetsRegistered) {
       monacoInstance.languages.registerCompletionItemProvider('javascript', {
-        provideCompletionItems: (model: any, position: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+        provideCompletionItems: (_model: any, _position: any) => {
           const suggestions = [
             {
               label: 'import lwc',

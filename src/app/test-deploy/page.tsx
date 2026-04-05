@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 export default function TestDeployPage() {
   const [status, setStatus] = useState<string>('Idle');
-  const [details, setDetails] = useState<any>(null);
+  const [details, setDetails] = useState<Record<string, unknown> | null>(null);
 
   const handleDeploy = async () => {
     setStatus('Deploying... (this takes up to 30s)');
@@ -51,9 +51,9 @@ export default class HelloWorldTester extends LightningElement {
         setStatus('Failed');
         setDetails(data);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStatus('Error');
-      setDetails({ error: err.message });
+      setDetails({ error: err instanceof Error ? err.message : String(err) });
     }
   }
 

@@ -16,6 +16,7 @@ export default function LwcStudioEditorPage({ params }: { params: { componentId:
     setHtml, 
     setJs, 
     setCss, 
+    setXml,
     saveComponent, 
     loadComponent 
   } = useEditorStore();
@@ -37,10 +38,11 @@ export default function LwcStudioEditorPage({ params }: { params: { componentId:
     loadComponent(params.componentId);
   }, [params.componentId, loadComponent]);
 
-  const handleEditorChange = (type: 'html' | 'js' | 'css', value: string) => {
+  const handleEditorChange = (type: 'html' | 'js' | 'css' | 'xml', value: string) => {
     if (type === 'html') setHtml(value);
     if (type === 'js') setJs(value);
     if (type === 'css') setCss(value);
+    if (type === 'xml') setXml(value);
   };
 
   const handleConnectClick = () => {
@@ -104,6 +106,7 @@ export default function LwcStudioEditorPage({ params }: { params: { componentId:
               htmlCode={currentComponent.htmlContent}
               jsCode={currentComponent.jsContent}
               cssCode={currentComponent.cssContent}
+              xmlCode={currentComponent.xmlContent}
               onChange={handleEditorChange}
            />
         </div>

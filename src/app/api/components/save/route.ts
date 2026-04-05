@@ -3,7 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 
 export async function POST(request: Request) {
   try {
-    const { id, htmlContent, jsContent, cssContent } = await request.json();
+    const { id, htmlContent, jsContent, cssContent, xmlContent } = await request.json();
 
     if (!id) return NextResponse.json({ error: 'Component ID required' }, { status: 400 });
 
@@ -19,7 +19,8 @@ export async function POST(request: Request) {
       .update({
         html_content: htmlContent,
         js_content: jsContent,
-        css_content: cssContent
+        css_content: cssContent,
+        xml_content: xmlContent
         // updated_at is handled by DB triggers
       })
       .eq('id', id);
@@ -36,7 +37,8 @@ export async function POST(request: Request) {
         component_id: id,
         html_content: htmlContent,
         js_content: jsContent,
-        css_content: cssContent
+        css_content: cssContent,
+        xml_content: xmlContent
       });
 
     if (versionError) {

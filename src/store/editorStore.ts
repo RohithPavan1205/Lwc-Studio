@@ -6,6 +6,7 @@ export interface ComponentData {
   htmlContent: string;
   jsContent: string;
   cssContent: string;
+  xmlContent: string;
 }
 
 interface EditorState {
@@ -18,6 +19,7 @@ interface EditorState {
   setHtml: (html: string) => void;
   setJs: (js: string) => void;
   setCss: (css: string) => void;
+  setXml: (xml: string) => void;
   setComponentDefinition: (comp: ComponentData) => void;
   saveComponent: () => Promise<void>;
   loadComponent: (id: string) => Promise<void>;
@@ -29,7 +31,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     name: 'Untitled',
     htmlContent: '',
     jsContent: '',
-    cssContent: ''
+    cssContent: '',
+    xmlContent: ''
   },
   isDirty: false,
   isSaving: false,
@@ -48,6 +51,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setCss: (css) => set((state) => ({
     currentComponent: { ...state.currentComponent, cssContent: css },
+    isDirty: true
+  })),
+
+  setXml: (xml) => set((state) => ({
+    currentComponent: { ...state.currentComponent, xmlContent: xml },
     isDirty: true
   })),
   
@@ -94,7 +102,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             name: data.name,
             htmlContent: data.html_content || '',
             jsContent: data.js_content || '',
-            cssContent: data.css_content || ''
+            cssContent: data.css_content || '',
+            xmlContent: data.xml_content || ''
           },
           isDirty: false,
           lastSavedAt: new Date(data.updated_at || Date.now()).getTime()

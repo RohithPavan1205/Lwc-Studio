@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import { logout } from '@/app/auth/actions';
 import { checkAndRefreshToken } from '@/utils/salesforce';
+import ProjectManager from '@/components/ProjectManager';
 
 export default async function DashboardPage({
   searchParams,
@@ -78,6 +79,13 @@ export default async function DashboardPage({
   } catch (err) {
     console.error('Error fetching sf_connection:', err);
   }
+
+  // Fetch all existing components for the current user (via project association)
+  // RLS will enforce that the user only sees components from their own projects.
+  const { data: userComponents } = await supabase
+    .from('components')
+    .select('id, name, updated_at')
+    .order('updated_at', { ascending: false });
 
   return (
     <main className="min-h-screen bg-[var(--background)] flex flex-col">
@@ -157,44 +165,7 @@ export default async function DashboardPage({
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="void-card p-6 flex flex-col space-y-4 border border-transparent hover:border-[var(--primary)] transition-all cursor-pointer group">
-              <div className="w-10 h-10 rounded bg-[var(--primary)] bg-opacity-10 flex items-center justify-center">
-                <div className="w-5 h-5 border-2 border-[var(--primary)] rounded-sm" />
-              </div>
-              <div>
-                <h3 className="font-bold text-[var(--on-surface)] group-hover:text-[var(--primary)] transition-colors">New Project</h3>
-                <p className="text-xs text-[var(--on-surface-variant)] mt-1">Start from a clean slate or template.</p>
-              </div>
-            </div>
-
-            <div className="void-card p-6 flex flex-col space-y-4 border border-transparent hover:border-[var(--secondary)] transition-all cursor-pointer group">
-               <div className="w-10 h-10 rounded bg-[var(--secondary)] bg-opacity-10 flex items-center justify-center">
-                 <div className="w-5 h-5 border-2 border-[var(--secondary)] rounded-full" />
-               </div>
-               <div>
-                 <h3 className="font-bold text-[var(--on-surface)] group-hover:text-[var(--secondary)] transition-colors">Import LWC</h3>
-                 <p className="text-xs text-[var(--on-surface-variant)] mt-1">Sync existing components from Salesforce.</p>
-               </div>
-            </div>
-
-            <div className="void-card p-6 flex flex-col space-y-4 border border-transparent hover:border-[var(--tertiary)] transition-all cursor-pointer group">
-               <div className="w-10 h-10 rounded bg-[var(--tertiary)] bg-opacity-10 flex items-center justify-center">
-                 <div className="w-1 h-5 bg-[var(--tertiary)] rounded-full" />
-               </div>
-               <div>
-                 <h3 className="font-bold text-[var(--on-surface)] group-hover:text-[var(--tertiary)] transition-colors">System Health</h3>
-                 <p className="text-xs text-[var(--on-surface-variant)] mt-1">Check API limits and connection status.</p>
-               </div>
-            </div>
-          </div>
-
-          <section className="pt-8">
-             <div className="void-sunken rounded-[var(--radius-md)] p-12 flex flex-col items-center justify-center text-center space-y-4 opacity-50">
-                <p className="void-label mb-0">No Active Projects</p>
-                <p className="text-xs text-[var(--on-surface-variant)]">You haven&apos;t initialized any workspace environments yet.</p>
-             </div>
-          </section>
+          <ProjectManager components={userComponents || []} />
         </div>
       </div>
     </main>

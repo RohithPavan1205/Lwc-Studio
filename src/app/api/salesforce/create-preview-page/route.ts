@@ -60,16 +60,22 @@ export async function POST(request: Request) {
     // VF Page
     const pagesFolder = zip.folder('pages');
     if (pagesFolder) {
-      pagesFolder.file(`LwcPreviewPage_${componentName}.page`, `<apex:page showHeader="false" sidebar="false" standardStylesheets="false">
-    <apex:includeLightning />
-    <div id="lightning" style="width:100%; height:100vh; overflow:auto; background:transparent;" />
-    <script>
-        $Lightning.use("c:LwcPreviewApp_${componentName}", function() {
-            $Lightning.createComponent("c:${componentName}", {}, "lightning", function(cmp) {
-                console.log("preview component loaded");
-            });
-        });
-    </script>
+      pagesFolder.file(`LwcPreviewPage_${componentName}.page`, `<apex:page showHeader="false" sidebar="false" standardStylesheets="false" applyHtmlTag="false" applyBodyTag="false">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+    </head>
+    <body style="margin: 0; padding: 0; background: transparent; overflow: hidden;">
+      <apex:includeLightning />
+      <div id="lightning" style="width:100%; height:100vh; overflow:auto;" />
+      <script>
+          $Lightning.use("c:LwcPreviewApp_${componentName}", function() {
+              $Lightning.createComponent("c:${componentName}", {}, "lightning", function(cmp) {
+                  console.log("preview component rendered");
+              });
+          });
+      </script>
+    </body>
 </apex:page>`);
       pagesFolder.file(`LwcPreviewPage_${componentName}.page-meta.xml`, `<?xml version="1.0" encoding="UTF-8"?>
 <ApexPage xmlns="http://soap.sforce.com/2006/04/metadata">

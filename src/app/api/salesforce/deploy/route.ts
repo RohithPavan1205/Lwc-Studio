@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 
 export async function POST(request: Request) {
   try {
-    const { componentName, htmlContent, jsContent, cssContent } = await request.json();
+    const { componentName, htmlContent, jsContent, cssContent, xmlContent } = await request.json();
 
     if (!componentName || !jsContent) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -51,8 +51,10 @@ export async function POST(request: Request) {
     if (htmlContent) folder.file(`${componentName}.html`, htmlContent);
     if (cssContent) folder.file(`${componentName}.css`, cssContent);
     folder.file(`${componentName}.js`, jsContent);
-    // 3. Create LightningComponentBundle meta
-    folder.file(`${componentName}.js-meta.xml`, `<?xml version="1.0" encoding="UTF-8"?>
+    // 3. Create LightningComponentBundle
+    let metaXml = xmlContent;
+    if (!metaXml || metaXml.trim() === '') {
+      metaXml = `<?xml version="1.0" encoding="UTF-8"?>
 <LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
     <apiVersion>58.0</apiVersion>
     <isExposed>true</isExposed>
@@ -60,8 +62,11 @@ export async function POST(request: Request) {
         <target>lightning__AppPage</target>
         <target>lightning__RecordPage</target>
         <target>lightning__HomePage</target>
+        <target>lightning__LightningOut</target>
     </targets>
-</LightningComponentBundle>`);
+</LightningComponentBundle>`;
+    }
+    folder.file(`${componentName}.js-meta.xml`, metaXml);
 
     // Generate Zip base64
     const zipBase64 = await zip.generateAsync({ type: 'base64' });

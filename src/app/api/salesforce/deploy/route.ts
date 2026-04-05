@@ -62,7 +62,6 @@ export async function POST(request: Request) {
         <target>lightning__AppPage</target>
         <target>lightning__RecordPage</target>
         <target>lightning__HomePage</target>
-        <target>lightning__LightningOut</target>
     </targets>
 </LightningComponentBundle>`;
     }

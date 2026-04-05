@@ -84,7 +84,7 @@ export default async function DashboardPage() {
           <section className="pt-8">
              <div className="void-sunken rounded-[var(--radius-md)] p-12 flex flex-col items-center justify-center text-center space-y-4 opacity-50">
                 <p className="void-label mb-0">No Active Projects</p>
-                <p className="text-xs text-[var(--on-surface-variant)]">You haven't initialized any workspace environments yet.</p>
+                <p className="text-xs text-[var(--on-surface-variant)]">You haven&apos;t initialized any workspace environments yet.</p>
              </div>
           </section>
         </div>

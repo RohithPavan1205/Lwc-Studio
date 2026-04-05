@@ -4,15 +4,6 @@ import { checkAndRefreshToken } from '@/utils/salesforce';
 
 export const dynamic = 'force-dynamic';
 
-// Headers that cause iframe blocking — strip all of these
-const BLOCKED_HEADERS = [
-  'x-frame-options',
-  'content-security-policy',
-  'x-content-type-options',
-  'strict-transport-security',
-  'content-encoding',
-];
-
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

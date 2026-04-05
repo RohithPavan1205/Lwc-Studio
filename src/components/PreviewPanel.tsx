@@ -7,15 +7,12 @@ import {
   Eye,
   Loader2,
   AlertTriangle,
-  RefreshCw,
   ExternalLink,
   Rocket,
   Monitor,
   Check,
   Info,
-  Zap,
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,14 +29,6 @@ interface PreviewError {
   type: 'SESSION_EXPIRED' | 'VF_PAGE_FAILED' | 'PREVIEW_TIMEOUT' | 'GENERIC';
   title: string;
   message: string;
-}
-
-interface CreatePageApiResponse {
-  success?: boolean;
-  pageId?: string;
-  pageName?: string;
-  previewUrl?: string;
-  error?: string;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -64,7 +53,6 @@ const PROGRESS_MAP: Partial<Record<PreviewState, number>> = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PreviewPanel({
-  componentId,
   componentName,
   userId,
   isOrgConnected,
@@ -82,28 +70,32 @@ export default function PreviewPanel({
 
   const [state, setState] = useState<PreviewState>(getInitialState);
   const [previewError, setPreviewError] = useState<PreviewError | null>(null);
-  const [iframeSrc, setIframeSrc] = useState<string>('');
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const progressPct = PROGRESS_MAP[state] ?? 0;
 
+  // ─── Preview Flow ─────────────────────────────────────────────────────────
+
+  const runPreviewFlow = useCallback(async () => {
+    setPreviewError(null);
+    setState('SUCCESS');
+  }, []);
+
+  const handleReset = useCallback(() => {
+    setPreviewError(null);
+    setState(isDeployed ? 'IDLE' : 'NOT_DEPLOYED');
+  }, [isDeployed]);
+
   // ─── React to parent signalling a fresh deploy ────────────────────────────
 
-  // When previewTrigger bumps (deploy finished in EditorShell), move to IDLE
-  // so the user sees "Ready — click Preview" with the fresh deploy available
   const prevTriggerRef = useRef(previewTrigger);
   useEffect(() => {
     if (previewTrigger !== prevTriggerRef.current) {
       prevTriggerRef.current = previewTrigger;
-      // Only auto-run preview if we're in NOT_DEPLOYED or IDLE or SUCCESS
       if (['NOT_DEPLOYED', 'IDLE', 'SUCCESS', 'ERROR'].includes(state)) {
-        // Auto-kick the preview flow after a successful deploy
         runPreviewFlow();
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewTrigger]);
+  }, [previewTrigger, state, runPreviewFlow]);
 
   // ─── React to org/deploy status changes ──────────────────────────────────
 
@@ -115,59 +107,7 @@ export default function PreviewPanel({
     } else if (isDeployed && state === 'NOT_DEPLOYED') {
       setState('IDLE');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOrgConnected, isDeployed]);
-
-  // ─── Preview Flow — NO deploy step ────────────────────────────────────────
-
-  const runPreviewFlow = useCallback(async () => {
-    setPreviewError(null);
-    setIframeSrc('');
-
-    // ── NATIVE PREVIEW READY ──────────────────────────────────────────────
-    // ── Step 2: READY FOR NATIVE PREVIEW ──────────────────────────────────────────────
-    setState('SUCCESS');
-    setLastUpdated(new Date());
-  }, [componentId, componentName, userId]);
-
-  // ─── Iframe Handlers ───────────────────────────────────────────────────────
-
-  const handleIframeLoad = useCallback(() => {
-    try {
-      const iframeDoc =
-        iframeRef.current?.contentDocument ||
-        iframeRef.current?.contentWindow?.document;
-      const title = iframeDoc?.title || '';
-      if (title.toLowerCase().includes('login')) {
-        setState('ERROR');
-        setPreviewError({
-          type: 'SESSION_EXPIRED',
-          title: 'Session Expired',
-          message: 'Salesforce returned a login page. Please reconnect your org.',
-        });
-        return;
-      }
-    } catch {
-      // Cross-origin — proxy handles it
-    }
-    setLastUpdated(new Date());
-    setState('SUCCESS');
-  }, []);
-
-  const handleIframeError = useCallback(() => {
-    setState('ERROR');
-    setPreviewError({
-      type: 'GENERIC',
-      title: 'Preview Load Error',
-      message: 'The preview iframe failed to load. Please try again.',
-    });
-  }, []);
-
-  const handleReset = useCallback(() => {
-    setPreviewError(null);
-    setIframeSrc('');
-    setState(isDeployed ? 'IDLE' : 'NOT_DEPLOYED');
-  }, [isDeployed]);
+  }, [isOrgConnected, isDeployed, state]);
 
   // ─── Shared progress bar ──────────────────────────────────────────────────
 
@@ -184,7 +124,6 @@ export default function PreviewPanel({
 
   // ─── State UIs ─────────────────────────────────────────────────────────────
 
-  // NOT_CONNECTED
   if (state === 'NOT_CONNECTED') {
     return (
       <div className="flex h-full items-center justify-center p-8 bg-[#0d1117]">
@@ -210,7 +149,6 @@ export default function PreviewPanel({
     );
   }
 
-  // NOT_DEPLOYED — new state
   if (state === 'NOT_DEPLOYED') {
     return (
       <div className="flex h-full items-center justify-center p-8 bg-[#0d1117]">
@@ -225,18 +163,11 @@ export default function PreviewPanel({
               to push your component to Salesforce, then preview it here.
             </p>
           </div>
-          <div className="px-4 py-3 bg-[#f0883e]/10 border border-[#f0883e]/20 rounded-lg text-xs text-[#f0883e] text-left w-full">
-            <p className="font-semibold mb-0.5">Why is this required?</p>
-            <p className="text-[#cd7a37] leading-relaxed">
-              Salesforce must receive and compile your LWC before it can be rendered in a Visualforce preview page.
-            </p>
-          </div>
         </div>
       </div>
     );
   }
 
-  // IDLE
   if (state === 'IDLE') {
     return (
       <div className="flex h-full items-center justify-center p-8 bg-[#0d1117]">
@@ -263,8 +194,7 @@ export default function PreviewPanel({
     );
   }
 
-  // CREATING_PREVIEW
-  if (state === 'CREATING_PREVIEW') {
+  if (state === 'CREATING_PREVIEW' || state === 'LOADING_PREVIEW') {
     return (
       <div className="flex h-full flex-col p-8 bg-[#0d1117]">
         {renderProgressBar()}
@@ -273,43 +203,20 @@ export default function PreviewPanel({
             <Loader2 className="w-7 h-7 text-[#00a1e0] animate-spin" />
           </div>
           <div>
-            <p className="text-[#e6edf3] font-semibold mb-1">Creating Preview Page</p>
-            <p className="text-[#8b949e] text-xs">
-              Generating Visualforce wrapper for{' '}
-              <code className="text-[#79c0ff]">{componentName}</code>...
-            </p>
+            <p className="text-[#e6edf3] font-semibold mb-1">Preparing Preview...</p>
+            <p className="text-[#8b949e] text-xs">Synchronizing with Salesforce Master App...</p>
           </div>
         </div>
       </div>
     );
   }
 
-  // LOADING_PREVIEW
-  if (state === 'LOADING_PREVIEW') {
-    return (
-      <div className="flex h-full flex-col p-8 bg-[#0d1117]">
-        {renderProgressBar()}
-        <div className="flex-1 flex flex-col items-center justify-center text-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-[#4fc3f7]/10 flex items-center justify-center">
-            <Loader2 className="w-7 h-7 text-[#4fc3f7] animate-spin" />
-          </div>
-          <div>
-            <p className="text-[#e6edf3] font-semibold mb-1">Preparing Environment...</p>
-            <p className="text-[#8b949e] text-xs">Authenticating with Salesforce Gateway...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // SUCCESS - Native Bridge UI
   if (state === 'SUCCESS') {
-    const previewUrl = `/api/salesforce/preview-proxy?userId=${encodeURIComponent(userId)}&componentName=${encodeURIComponent(componentName)}&t=${Date.now()}`;
+    const syncUrl = `/api/salesforce/preview-proxy?userId=${encodeURIComponent(userId)}&componentName=${encodeURIComponent(componentName)}&t=${Date.now()}`;
 
     return (
       <div className="flex h-full flex-col bg-[#0d1117] items-center justify-center p-12 text-center">
         <div className="max-w-md w-full space-y-8">
-          {/* Visual Header */}
           <div className="relative mx-auto w-24 h-24">
             <div className="absolute inset-0 bg-[#00a1e0]/20 rounded-2xl rotate-6 blur-xl" />
             <div className="relative bg-[#161b22] border border-[#30363d] rounded-2xl w-full h-full flex items-center justify-center">
@@ -324,7 +231,7 @@ export default function PreviewPanel({
             <h3 className="text-2xl font-bold text-white tracking-tight">Preview Environment Ready</h3>
             <p className="text-[#8b949e] leading-relaxed">
               Salesforce security policies prevent components from being rendered directly inside frames. 
-              We've initialized a <span className="text-[#e6edf3] font-medium">Native Bridge</span> instead.
+              We&apos;ve initialized a <span className="text-[#e6edf3] font-medium">Native Bridge</span> instead.
             </p>
           </div>
 
@@ -342,8 +249,7 @@ export default function PreviewPanel({
           <div className="pt-4 flex flex-col gap-3">
             <button
               onClick={() => {
-                const previewUrl = `/api/salesforce/preview-proxy?userId=${encodeURIComponent(userId)}&componentName=${encodeURIComponent(componentName)}&t=${Date.now()}`;
-                window.open(previewUrl, 'LWC_STUDIO_PREVIEW_WINDOW');
+                window.open(syncUrl, 'LWC_STUDIO_PREVIEW_WINDOW');
               }}
               className="group relative flex items-center justify-center gap-3 w-full py-4 px-6 bg-[#00a1e0] hover:bg-[#008cc2] text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-[#00a1e0]/20 transform hover:-translate-y-0.5 active:translate-y-0"
             >
@@ -363,7 +269,6 @@ export default function PreviewPanel({
     );
   }
 
-  // ERROR
   if (state === 'ERROR') {
     return (
       <div className="flex h-full items-center justify-center p-8 bg-[#0d1117]">
@@ -381,7 +286,6 @@ export default function PreviewPanel({
           </div>
           <div className="flex flex-col gap-2 w-full">
             <button
-              id="preview-try-again-btn"
               onClick={handleReset}
               className="px-5 py-2 rounded-lg bg-[#21262d] hover:bg-[#30363d] text-[#e6edf3] text-sm font-semibold transition-all"
             >
@@ -389,7 +293,6 @@ export default function PreviewPanel({
             </button>
             {previewError?.type === 'SESSION_EXPIRED' && (
               <button
-                id="preview-reconnect-btn"
                 onClick={() => router.push('/dashboard/settings')}
                 className="px-5 py-2 rounded-lg bg-[#00a1e0] hover:bg-[#0090c7] text-white text-sm font-semibold transition-all"
               >

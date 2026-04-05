@@ -6,7 +6,6 @@ import { createBrowserClient } from '@supabase/ssr';
 import { formatDistanceToNow } from 'date-fns';
 import { Code2, Plus, MoreHorizontal, Pencil, Trash2, X, AlertCircle, FileCode } from 'lucide-react';
 import NavBar from '@/components/NavBar';
-import Link from 'next/link';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

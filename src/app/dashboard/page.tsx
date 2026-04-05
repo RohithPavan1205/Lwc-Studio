@@ -2,7 +2,11 @@ import { createClient } from '@/utils/supabase/server';
 import { redirect } from 'next/navigation';
 import { logout } from '@/app/auth/actions';
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: { [key: string]: string | string[] | undefined };
+}) {
   const supabase = createClient();
 
   // If Supabase is missing config, help the user troubleshoot
@@ -44,6 +48,19 @@ export default async function DashboardPage() {
     .eq('id', user.id)
     .single();
 
+  // Check for Salesforce connection
+  let sfConnection = null;
+  try {
+    const { data } = await supabase
+      .from('salesforce_connections')
+      .select('instance_url, updated_at')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    sfConnection = data;
+  } catch (err) {
+    console.error('Error fetching sf_connection:', err);
+  }
+
   return (
     <main className="min-h-screen bg-[var(--background)] flex flex-col">
       {/* Dashboard Nav */}
@@ -72,6 +89,49 @@ export default async function DashboardPage() {
             <h1 className="text-3xl font-bold text-[var(--on-surface)]">Welcome back, {profile?.full_name?.split(' ')[0] || 'Developer'}</h1>
             <p className="text-[var(--on-surface-variant)] mt-2">Initialize your next mission-critical LWC project.</p>
           </header>
+
+          <div className="void-card p-6 flex flex-col space-y-4 border border-[var(--outline-variant)]">
+            <div className="flex justify-between items-center whitespace-nowrap overflow-hidden">
+              <div className="flex items-center space-x-4 flex-1">
+                <div className={`w-10 h-10 rounded flex items-center justify-center ${sfConnection ? 'bg-[#00a1e0] bg-opacity-10' : 'bg-[var(--surface-container-high)] flex-shrink-0'}`}>
+                   <div className={`w-5 h-5 rounded-sm border-2 ${sfConnection ? 'border-[#00a1e0]' : 'border-[var(--on-surface-variant)]'} border-b-0`} />
+                </div>
+                <div className="overflow-hidden">
+                  <h3 className="font-bold text-[var(--on-surface)]">Salesforce Connection</h3>
+                  {sfConnection ? (
+                    <p className="text-sm text-[#00a1e0] mt-1 flex items-center truncate">
+                      <span className="w-2 h-2 rounded-full bg-[#00a1e0] mr-2"></span>
+                      Org Connected ■ {sfConnection.instance_url}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-[var(--on-surface-variant)] mt-1">
+                      No org connected.
+                    </p>
+                  )}
+                </div>
+              </div>
+              {!sfConnection && (
+                <form action="/api/auth/salesforce/login" method="GET" className="ml-4">
+                  <button className="text-xs font-bold uppercase tracking-wide bg-[#00a1e0] text-white px-6 py-3 rounded hover:bg-opacity-90 transition-all shadow-lg flex-shrink-0">
+                    Connect Org
+                  </button>
+                </form>
+              )}
+            </div>
+            
+            {searchParams?.error && (
+              <div className="mt-4 p-3 bg-[var(--error)] bg-opacity-10 border border-[var(--error)] rounded text-xs text-[var(--error)]">
+                <p className="font-bold uppercase tracking-wider mb-1">Connection Error</p>
+                <p>{searchParams.error} {searchParams.desc ? `- ${searchParams.desc}` : ''}</p>
+              </div>
+            )}
+            {searchParams?.success && (
+              <div className="mt-4 p-3 bg-[#4caf50] bg-opacity-10 border border-[#4caf50] rounded text-xs text-[#4caf50]">
+                <p className="font-bold uppercase tracking-wider mb-1">Success</p>
+                <p>Salesforce Org successfully connected and verified.</p>
+              </div>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="void-card p-6 flex flex-col space-y-4 border border-transparent hover:border-[var(--primary)] transition-all cursor-pointer group">

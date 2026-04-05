@@ -7,6 +7,10 @@ import { redirect } from 'next/navigation';
 export async function login(formData: FormData) {
   const supabase = createClient();
 
+  if (!supabase) {
+    return { error: 'Supabase configuration is missing or invalid.' };
+  }
+
   const data = {
     email: formData.get('email') as string,
     password: formData.get('password') as string,
@@ -24,6 +28,10 @@ export async function login(formData: FormData) {
 
 export async function signup(formData: FormData) {
   const supabase = createClient();
+
+  if (!supabase) {
+    return { error: 'Supabase configuration is missing or invalid.' };
+  }
 
   const fullName = formData.get('name') as string;
   const email = formData.get('email') as string;
@@ -49,6 +57,11 @@ export async function signup(formData: FormData) {
 
 export async function logout() {
   const supabase = createClient();
+
+  if (!supabase) {
+    redirect('/login');
+    return;
+  }
 
   const { error } = await supabase.auth.signOut();
 

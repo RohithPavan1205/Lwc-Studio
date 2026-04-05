@@ -5,9 +5,33 @@ import { logout } from '@/app/auth/actions';
 export default async function DashboardPage() {
   const supabase = createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // If Supabase is missing config, help the user troubleshoot
+  if (!supabase) {
+    return (
+      <div className="min-h-screen bg-[var(--background)] flex items-center justify-center p-8">
+        <div className="void-card p-12 max-w-lg border border-[var(--error)] border-opacity-30">
+          <h1 className="text-xl font-bold text-[var(--error)] mb-4 uppercase tracking-tighter">System Configuration Error</h1>
+          <p className="text-sm text-[var(--on-surface-variant)] leading-relaxed">
+            The Precision Void Engine could not be initialized. Please ensure your 
+            <code className="bg-black/40 px-2 py-0.5 rounded mx-1 italic">NEXT_PUBLIC_SUPABASE_URL</code> and 
+            <code className="bg-black/40 px-2 py-0.5 rounded mx-1 italic">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> 
+            environment variables are configured correctly in your Vercel Dashboard.
+          </p>
+          <div className="mt-8 pt-8 border-t border-[var(--outline-variant)]">
+            <p className="text-[10px] text-[var(--outline)] uppercase tracking-widest font-mono">Digest: 500_CONFIG_MISSING</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  let user;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch (e) {
+    user = null;
+  }
 
   if (!user) {
     return redirect('/login');

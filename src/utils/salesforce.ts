@@ -1,14 +1,5 @@
 import { createClient } from '@/utils/supabase/server';
 
-interface TokenRefreshResponse {
-  access_token: string;
-  signature: string;
-  scope: string;
-  instance_url: string;
-  id: string;
-  token_type: string;
-  issued_at: string;
-}
 
 export async function checkAndRefreshToken(userId: string): Promise<string | null> {
   const supabase = createClient();

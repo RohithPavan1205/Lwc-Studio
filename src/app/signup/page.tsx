@@ -1,8 +1,23 @@
 'use client';
 
 import Link from 'next/link';
+import { signup } from '@/app/auth/actions';
+import { useState, useTransition } from 'react';
 
 export default function SignupPage() {
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  async function handleSubmit(formData: FormData) {
+    setError(null);
+    startTransition(async () => {
+      const result = await signup(formData);
+      if (result?.error) {
+        setError(result.error);
+      }
+    });
+  }
+
   return (
     <main className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-[440px] flex flex-col space-y-8">
@@ -17,14 +32,15 @@ export default function SignupPage() {
           </p>
         </div>
 
-        {/* Auth Form (Visual only for now) */}
+        {/* Auth Form */}
         <div className="flex flex-col space-y-6">
-          <form className="flex flex-col space-y-5" onSubmit={(e) => e.preventDefault()}>
+          <form action={handleSubmit} className="flex flex-col space-y-5">
             <div className="space-y-4">
               <div>
                 <label className="void-label" htmlFor="name">Full Identity Name</label>
                 <input 
                   id="name"
+                  name="name"
                   type="text" 
                   placeholder="John Doe" 
                   className="void-input w-full"
@@ -35,6 +51,7 @@ export default function SignupPage() {
                 <label className="void-label" htmlFor="email">Work Email</label>
                 <input 
                   id="email"
+                  name="email"
                   type="email" 
                   placeholder="name@company.com" 
                   className="void-input w-full"
@@ -46,6 +63,7 @@ export default function SignupPage() {
                   <label className="void-label" htmlFor="password">Security Token</label>
                   <input 
                     id="password"
+                    name="password"
                     type="password" 
                     placeholder="••••••••" 
                     className="void-input w-full"
@@ -56,6 +74,7 @@ export default function SignupPage() {
                   <label className="void-label" htmlFor="confirm-password">Confirm Token</label>
                   <input 
                     id="confirm-password"
+                    name="confirm-password"
                     type="password" 
                     placeholder="••••••••" 
                     className="void-input w-full"
@@ -64,6 +83,12 @@ export default function SignupPage() {
                 </div>
               </div>
             </div>
+
+            {error && (
+              <div className="p-3 text-[10px] uppercase font-bold tracking-widest bg-[var(--error)] bg-opacity-10 border border-[var(--error)] border-opacity-20 text-[var(--error)] rounded">
+                Access Refused: {error}
+              </div>
+            )}
 
             <div className="pt-2">
                <label className="flex items-start space-x-3 cursor-pointer">
@@ -74,8 +99,12 @@ export default function SignupPage() {
                </label>
             </div>
 
-            <button type="submit" className="void-btn-primary w-full mt-2">
-              Initialize Account
+            <button 
+              type="submit" 
+              disabled={isPending}
+              className="void-btn-primary w-full mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isPending ? 'Provisioning...' : 'Initialize Account'}
             </button>
           </form>
 

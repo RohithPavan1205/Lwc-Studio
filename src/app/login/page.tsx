@@ -1,8 +1,23 @@
 'use client';
 
 import Link from 'next/link';
+import { login } from '@/app/auth/actions';
+import { useState, useTransition } from 'react';
 
 export default function LoginPage() {
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  async function handleSubmit(formData: FormData) {
+    setError(null);
+    startTransition(async () => {
+      const result = await login(formData);
+      if (result?.error) {
+        setError(result.error);
+      }
+    });
+  }
+
   return (
     <main className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-[400px] flex flex-col space-y-8">
@@ -17,14 +32,15 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* Auth Form (Visual only for now) */}
+        {/* Auth Form */}
         <div className="flex flex-col space-y-6">
-          <form className="flex flex-col space-y-5" onSubmit={(e) => e.preventDefault()}>
+          <form action={handleSubmit} className="flex flex-col space-y-5">
             <div className="space-y-4">
               <div>
                 <label className="void-label" htmlFor="email">Work Email</label>
                 <input 
                   id="email"
+                  name="email"
                   type="email" 
                   placeholder="name@company.com" 
                   className="void-input w-full"
@@ -35,6 +51,7 @@ export default function LoginPage() {
                 <label className="void-label" htmlFor="password">Security Token (Password)</label>
                 <input 
                   id="password"
+                  name="password"
                   type="password" 
                   placeholder="••••••••••••" 
                   className="void-input w-full"
@@ -42,6 +59,12 @@ export default function LoginPage() {
                 />
               </div>
             </div>
+
+            {error && (
+              <div className="p-3 text-[10px] uppercase font-bold tracking-widest bg-[var(--error)] bg-opacity-10 border border-[var(--error)] border-opacity-20 text-[var(--error)] rounded">
+                Verification Failed: {error}
+              </div>
+            )}
 
             <div className="flex items-center justify-between py-1">
               <label className="flex items-center space-x-2 cursor-pointer">
@@ -53,8 +76,12 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            <button type="submit" className="void-btn-primary w-full mt-2">
-              Decrypt & Authenticate
+            <button 
+              type="submit" 
+              disabled={isPending}
+              className="void-btn-primary w-full mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isPending ? 'Authenticating...' : 'Decrypt & Authenticate'}
             </button>
           </form>
 

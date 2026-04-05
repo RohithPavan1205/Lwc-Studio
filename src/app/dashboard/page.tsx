@@ -29,7 +29,7 @@ export default async function DashboardPage() {
   try {
     const { data } = await supabase.auth.getUser();
     user = data.user;
-  } catch (_) {
+  } catch {
     user = null;
   }
 

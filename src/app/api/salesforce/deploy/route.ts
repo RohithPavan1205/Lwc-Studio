@@ -5,7 +5,7 @@ import JSZip from 'jszip';
 
 export async function POST(request: Request) {
   try {
-    const { componentName, htmlContent, jsContent, cssContent, xmlContent } = await request.json();
+    const { componentName, htmlContent, jsContent, cssContent } = await request.json();
 
     if (!componentName || !jsContent) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -51,10 +51,8 @@ export async function POST(request: Request) {
     if (htmlContent) folder.file(`${componentName}.html`, htmlContent);
     if (cssContent) folder.file(`${componentName}.css`, cssContent);
     folder.file(`${componentName}.js`, jsContent);
-    // 3. Create LightningComponentBundle
-    let metaXml = xmlContent;
-    if (!metaXml || metaXml.trim() === '') {
-      metaXml = `<?xml version="1.0" encoding="UTF-8"?>
+    // 3. Create LightningComponentBundle meta
+    folder.file(`${componentName}.js-meta.xml`, `<?xml version="1.0" encoding="UTF-8"?>
 <LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
     <apiVersion>58.0</apiVersion>
     <isExposed>true</isExposed>
@@ -63,9 +61,7 @@ export async function POST(request: Request) {
         <target>lightning__RecordPage</target>
         <target>lightning__HomePage</target>
     </targets>
-</LightningComponentBundle>`;
-    }
-    folder.file(`${componentName}.js-meta.xml`, metaXml);
+</LightningComponentBundle>`);
 
     // Generate Zip base64
     const zipBase64 = await zip.generateAsync({ type: 'base64' });
@@ -163,8 +159,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Deployment Failed', details: errorMsg, status, processId }, { status: 400 });
     }
 
-  } catch (err: unknown) {
+  } catch (err: any) {
     console.error('Deploy crash:', err);
-    return NextResponse.json({ error: 'Server Crash', details: err instanceof Error ? err.message : String(err) }, { status: 500 });
+    return NextResponse.json({ error: 'Server Crash', details: err.message }, { status: 500 });
   }
 }

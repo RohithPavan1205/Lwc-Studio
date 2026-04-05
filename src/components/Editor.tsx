@@ -6,23 +6,22 @@ interface LwcEditorProps {
   htmlCode: string;
   jsCode: string;
   cssCode: string;
-  xmlCode: string;
-  onChange: (type: 'html' | 'js' | 'css' | 'xml', value: string) => void;
+  onChange: (type: 'html' | 'js' | 'css', value: string) => void;
 }
 
-type TabType = 'html' | 'js' | 'css' | 'xml';
+type TabType = 'html' | 'js' | 'css';
 
 let snippetsRegistered = false;
 
-export default function LwcEditor({ htmlCode, jsCode, cssCode, xmlCode, onChange }: LwcEditorProps) {
+export default function LwcEditor({ htmlCode, jsCode, cssCode, onChange }: LwcEditorProps) {
   const [activeTab, setActiveTab] = useState<TabType>('js');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const monaco = useMonaco();
+
   const handleEditorWillMount = (monacoInstance: any) => {
     // Only register snippets once to prevent duplicates during React hot reloads
     if (!snippetsRegistered) {
       monacoInstance.languages.registerCompletionItemProvider('javascript', {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
-        provideCompletionItems: (_model: any, _position: any) => {
+        provideCompletionItems: (model: any, position: any) => {
           const suggestions = [
             {
               label: 'import lwc',
@@ -76,14 +75,12 @@ export default function LwcEditor({ htmlCode, jsCode, cssCode, xmlCode, onChange
   const getLanguage = () => {
     if (activeTab === 'html') return 'html';
     if (activeTab === 'css') return 'css';
-    if (activeTab === 'xml') return 'xml';
     return 'javascript';
   };
 
   const getValue = () => {
     if (activeTab === 'html') return htmlCode;
     if (activeTab === 'css') return cssCode;
-    if (activeTab === 'xml') return xmlCode;
     return jsCode;
   };
 
@@ -95,7 +92,7 @@ export default function LwcEditor({ htmlCode, jsCode, cssCode, xmlCode, onChange
     <div className="flex flex-col h-full w-full rounded-md overflow-hidden border border-[var(--outline-variant)] bg-[var(--surface-container)]">
       {/* Tab Header */}
       <div className="flex border-b border-[var(--outline-variant)] bg-[#1e1e1e] overflow-x-auto">
-        {(['html', 'js', 'css', 'xml'] as TabType[]).map((tab) => (
+        {(['html', 'js', 'css'] as TabType[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -105,7 +102,7 @@ export default function LwcEditor({ htmlCode, jsCode, cssCode, xmlCode, onChange
                 : 'text-[#888] hover:bg-white hover:bg-opacity-5 border-t-2 border-t-transparent'
             }`}
           >
-            {tab === 'html' ? 'template.html' : tab === 'js' ? 'component.js' : tab === 'css' ? 'styles.css' : 'meta.xml'}
+            {tab === 'html' ? 'template.html' : tab === 'js' ? 'component.js' : 'styles.css'}
           </button>
         ))}
       </div>

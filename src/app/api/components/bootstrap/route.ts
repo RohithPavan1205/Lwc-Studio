@@ -3,7 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST () {
+export async function POST (request: Request) {
   try {
     const supabase = createClient();
     if (!supabase) return NextResponse.json({ error: 'Supabase client error' }, { status: 500 });
@@ -12,7 +12,7 @@ export async function POST () {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     // Ensure we have at least one project for this user
-    const { data: projects } = await supabase
+    let { data: projects } = await supabase
       .from('projects')
       .select('id')
       .eq('user_id', user.id)

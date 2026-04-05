@@ -2,27 +2,38 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({
+  // Initial response object
+  let supabaseResponse = NextResponse.next({
     request: {
       headers: request.headers,
     },
   })
 
+  // Get credentials from environment
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  // If environment variables are missing, don't crash yet, 
+  // though auth will not work as expected.
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return supabaseResponse
+  }
+
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         getAll() {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          response = NextResponse.next({
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({
             request,
           })
           cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, options)
           )
         },
       },
@@ -30,24 +41,32 @@ export async function updateSession(request: NextRequest) {
   )
 
   // This will refresh session if expired - required for Server Components
-  // https://supabase.com/docs/guides/auth/server-side/nextjs
+  // IMPORTANT: Do not move this logic before createServerClient
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protect routes here
-  if (
-    !user &&
-    !request.nextUrl.pathname.startsWith('/login') &&
-    !request.nextUrl.pathname.startsWith('/signup') &&
-    !request.nextUrl.pathname.startsWith('/auth') &&
-    request.nextUrl.pathname !== '/'
-  ) {
-    // No user, potentially redirect to login page
+  const { pathname } = request.nextUrl
+
+  // Protected paths
+  const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/signup')
+  const isDashboard = pathname.startsWith('/dashboard')
+  const isRoot = pathname === '/'
+
+  // Logic: 
+  // 1. If not logged in and trying to access dashboard -> Redirect to login
+  if (!user && isDashboard) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  return response
+  // 2. If logged in and trying to access login/signup -> Redirect to dashboard
+  if (user && isAuthPage) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    return NextResponse.redirect(url)
+  }
+
+  return supabaseResponse
 }

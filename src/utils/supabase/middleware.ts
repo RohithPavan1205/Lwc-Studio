@@ -28,7 +28,7 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({
             request,
           })
@@ -51,7 +51,6 @@ export async function updateSession(request: NextRequest) {
   // Protected paths
   const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/signup')
   const isDashboard = pathname.startsWith('/dashboard')
-  const isRoot = pathname === '/'
 
   // Logic: 
   // 1. If not logged in and trying to access dashboard -> Redirect to login

@@ -28,10 +28,10 @@ export default async function EditorPage({ params }: EditorPageProps) {
     return redirect('/login');
   }
 
-  // ── 2. Load component data (with project info for breadcrumb) ─────────────
+  // ── 2. Load component data ─────────────
   const { data: component, error: compError } = await supabase
     .from('components')
-    .select('id, name, html_content, js_content, css_content, project_id')
+    .select('id, name, html_content, js_content, css_content')
     .eq('id', componentId)
     .single();
 
@@ -54,21 +54,14 @@ export default async function EditorPage({ params }: EditorPageProps) {
     );
   }
 
-  // ── 3. Fetch project name for breadcrumb ──────────────────────────────────
-  const { data: project } = await supabase
-    .from('projects')
-    .select('id, name')
-    .eq('id', component.project_id)
-    .single();
-
-  // ── 4. Fetch user profile for NavBar ─────────────────────────────────────
+  // ── 3. Fetch user profile for NavBar ─────────────────────────────────────
   const { data: profile } = await supabase
     .from('profiles')
     .select('full_name')
     .eq('id', user.id)
     .single();
 
-  // ── 5. Check if Salesforce org is connected (service role to bypass RLS) ──
+  // ── 4. Check if Salesforce org is connected (service role to bypass RLS) ──
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
   let isOrgConnected = false;
@@ -87,8 +80,6 @@ export default async function EditorPage({ params }: EditorPageProps) {
     <EditorShell
       componentId={componentId}
       componentName={component.name}
-      projectId={component.project_id}
-      projectName={project?.name ?? 'Project'}
       htmlContent={component.html_content ?? ''}
       jsContent={component.js_content ?? ''}
       cssContent={component.css_content ?? ''}

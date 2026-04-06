@@ -11,37 +11,12 @@ export async function POST () {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // Ensure we have at least one project for this user
-    const { data: projects } = await supabase
-      .from('projects')
-      .select('id')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    let project = projects?.[0];
-
-    if (!project) {
-       const { data: newProject, error: projectError } = await supabase
-         .from('projects')
-         .insert({ name: 'Default Project', user_id: user.id })
-         .select()
-         .single();
-       
-       if (projectError) return NextResponse.json({ error: 'Project creation failed' }, { status: 500 });
-       project = newProject;
-    }
-
-    if (!project) return NextResponse.json({ error: 'Project data missing' }, { status: 500 });
-
-    // Check if test component already exists in ANY of user's projects
+    // Check if test component already exists for user
     const { data: existingComponent } = await supabase
       .from('components')
       .select('id, name')
       .eq('name', 'helloWorldTester')
-      .in('project_id', (await supabase.from('projects').select('id').eq('user_id', user.id)).data?.map(p => p.id) || [])
-      .order('updated_at', { ascending: false })
-      .limit(1)
+      .eq('user_id', user.id)
       .maybeSingle();
 
     if (existingComponent) {
@@ -56,7 +31,7 @@ export async function POST () {
     const { data: component, error: compError } = await supabase
       .from('components')
       .insert({
-        project_id: project.id,
+        user_id: user.id,
         name: 'helloWorldTester',
         html_content: '<template>\n    <div class="slds-box slds-theme_default">\n        <h1 class="slds-text-heading_medium">{title}</h1>\n    </div>\n</template>',
         js_content: "import { LightningElement, api } from 'lwc';\n\nexport default class MyComp extends LightningElement {\n    @api title = 'Hello World';\n}",

@@ -11,8 +11,6 @@ import { formatDistanceToNow } from 'date-fns';
 interface EditorShellProps {
   componentId: string;
   componentName: string;
-  projectId: string;
-  projectName: string;
   htmlContent: string;
   jsContent: string;
   cssContent: string;
@@ -32,8 +30,6 @@ interface DeployFastResponse {
 export default function EditorShell({
   componentId,
   componentName,
-  projectId,
-  projectName,
   htmlContent,
   jsContent,
   cssContent,
@@ -250,7 +246,6 @@ export default function EditorShell({
 
   // ── Breadcrumbs ────────────────────────────────────────────────────────────
   const breadcrumbs = [
-    { label: projectName, href: `/dashboard/projects/${projectId}` },
     { label: componentName, href: `/dashboard/editor/${componentId}` },
   ];
 

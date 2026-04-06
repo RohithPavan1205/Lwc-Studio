@@ -109,11 +109,24 @@ async function metadataDeploy(
 
   if (status === 'Succeeded') {
     const failCheck = resultText.match(/<success>false<\/success>/);
-    if (failCheck) {
-      const problemMatch = resultText.match(/<problem>(.*?)<\/problem>/);
-      return { success: false, processId, error: problemMatch?.[1] ?? 'Compilation error' };
-    }
-    return { success: true, processId };
+    if (!failCheck) return { success: true, processId };
+  }
+
+  // Parse detailed errors from componentFailures
+  const failures: string[] = [];
+  const failureRegex = /<componentFailures>([\s\S]*?)<\/componentFailures>/g;
+  let match;
+  
+  while ((match = failureRegex.exec(resultText)) !== null) {
+    const content = match[1];
+    const fileName = content.match(/<fileName>([\s\S]*?)<\/fileName>/)?.[1]?.trim() || 'unknown';
+    const problem = content.match(/<problem>([\s\S]*?)<\/problem>/)?.[1]?.trim() || 'Unknown error';
+    const line = content.match(/<lineNumber>([\s\S]*?)<\/lineNumber>/)?.[1]?.trim();
+    failures.push(`${fileName}${line ? ` (Line ${line})` : ''}: ${problem}`);
+  }
+
+  if (failures.length > 0) {
+    return { success: false, processId, error: failures.join(' | ') };
   }
 
   const problemMatch = resultText.match(/<problem>(.*?)<\/problem>/);
@@ -164,6 +177,7 @@ export async function POST(request: Request) {
     console.log(`[DeployFast] Checking if component exists: ${componentName}`);
 
     let componentExists = false;
+    let bundleId = '';
     try {
       const queryStr = `SELECT Id FROM LightningComponentBundle WHERE DeveloperName = '${componentName}'`;
       console.log(`[DeployFast] Running SOQL: ${queryStr}`);
@@ -175,12 +189,41 @@ export async function POST(request: Request) {
       componentExists = existingQuery.totalSize > 0;
       console.log(`[DeployFast] Query result: totalSize=${existingQuery.totalSize}, exists=${componentExists}`);
       if (componentExists) {
-        console.log(`[DeployFast] Found bundle ID: ${existingQuery.records[0].Id}`);
+        bundleId = existingQuery.records[0].Id;
+        console.log(`[DeployFast] Found bundle ID: ${bundleId}`);
       }
     } catch (queryErr) {
-      // Don't silently fallback — log the full error
-      console.error('[DeployFast] ⚠️  Tooling query FAILED. Falling back to full deploy. Error:', queryErr);
+      console.error('[DeployFast] ⚠️ Tooling query FAILED. Falling back to full deploy. Error:', queryErr);
       componentExists = false;
+    }
+
+    // ── Fetch original js-meta.xml to prevent removing targets ─────────────────
+    let metaXmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>58.0</apiVersion>
+    <isExposed>true</isExposed>
+    <targets>
+        <target>lightning__AppPage</target>
+        <target>lightning__RecordPage</target>
+        <target>lightning__HomePage</target>
+    </targets>
+</LightningComponentBundle>`;
+
+    if (componentExists && bundleId) {
+      try {
+        const metaQueryStr = `SELECT Source FROM LightningComponentResource WHERE LightningComponentBundleId = '${bundleId}' AND FilePath LIKE '%.js-meta.xml'`;
+        const metaRes = await toolingGet<{ records: Array<{ Source: string }> }>(
+          instance_url,
+          token,
+          `query?q=${encodeURIComponent(metaQueryStr)}`
+        );
+        if (metaRes.records && metaRes.records.length > 0 && metaRes.records[0].Source) {
+          metaXmlContent = metaRes.records[0].Source;
+          console.log('[DeployFast] Successfully loaded existing js-meta.xml from Org to preserve targets');
+        }
+      } catch (e) {
+        console.warn('[DeployFast] Could not fetch existing js-meta.xml. Proceeding with fallback.', e);
+      }
     }
 
     // ── Step 2: Build ZIP package ─────────────────────────────────────────────
@@ -193,16 +236,7 @@ export async function POST(request: Request) {
     if (htmlContent) lwcFolder.file(`${componentName}.html`, htmlContent);
     lwcFolder.file(`${componentName}.js`, jsContent);
     if (cssContent) lwcFolder.file(`${componentName}.css`, cssContent);
-    lwcFolder.file(`${componentName}.js-meta.xml`, `<?xml version="1.0" encoding="UTF-8"?>
-<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
-    <apiVersion>58.0</apiVersion>
-    <isExposed>true</isExposed>
-    <targets>
-        <target>lightning__AppPage</target>
-        <target>lightning__RecordPage</target>
-        <target>lightning__HomePage</target>
-    </targets>
-</LightningComponentBundle>`);
+    lwcFolder.file(`${componentName}.js-meta.xml`, metaXmlContent);
 
     if (componentExists) {
       // ── FAST PATH: Component exists → deploy LWC only (skip Aura app) ──────

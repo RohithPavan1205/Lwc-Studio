@@ -5,6 +5,7 @@ import { generateCodeVerifier, generateCodeChallenge } from '@/utils/crypto/pkce
 import { cookies } from 'next/headers';
 
 export async function GET() {
+  console.log('[DEBUG] Initiating Salesforce OAuth at /api/auth/salesforce...');
   const verifier = generateCodeVerifier();
   const challenge = generateCodeChallenge(verifier);
 
@@ -24,14 +25,15 @@ export async function GET() {
     maxAge: 60 * 10, // 10 minutes
   });
 
-  const authUrl = new URL(`${loginUrl}/services/oauth2/authorize`);
-  authUrl.searchParams.set('client_id', clientId);
-  authUrl.searchParams.set('redirect_uri', redirectUri);
-  authUrl.searchParams.set('response_type', 'code');
-  authUrl.searchParams.set('code_challenge', challenge);
-  authUrl.searchParams.set('code_challenge_method', 'S256');
-  // Salesforce expects space-separated scopes. URLSearchParams.set will encode them.
-  authUrl.searchParams.set('scope', 'api refresh_token openid profile email');
+  const authUrl = `${loginUrl}/services/oauth2/authorize?` + 
+    new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+    }).toString() + 
+    `&scope=${encodeURIComponent('api refresh_token')}`;
 
-  return NextResponse.redirect(authUrl.toString());
+  return NextResponse.redirect(authUrl);
 }

@@ -57,23 +57,36 @@ export async function GET(request: Request) {
       return NextResponse.redirect(loginUrlFull.toString());
     }
 
-    const { access_token, refresh_token, instance_url } = tokenData;
-    console.log('[SF CALLBACK] Tokens received. Instance URL:', instance_url);
+    const { access_token, refresh_token, instance_url, id: identity_url } = tokenData;
+    console.log('[SF CALLBACK] Tokens received. Identity URL:', identity_url);
 
-    // Fetch user info from Salesforce - using instance_url/services/oauth2/userinfo is often more reliable
-    console.log('[SF CALLBACK] Fetching user info...');
-    const userInfoResponse = await fetch(`${instance_url}/services/oauth2/userinfo`, {
-      headers: { Authorization: `Bearer ${access_token}` },
-    });
-    const userInfo = await userInfoResponse.json();
+    // Fetch user info from Salesforce using the identity URL provided in the token response.
+    // This works even without openid/profile scopes.
+    console.log('[SF CALLBACK] Fetching user info from Identity URL...');
+    let userInfo;
+    try {
+      const userInfoResponse = await fetch(identity_url, {
+        headers: { Authorization: `Bearer ${access_token}` },
+      });
+      userInfo = await userInfoResponse.json();
 
-    if (!userInfoResponse.ok) {
-      console.error('[SF CALLBACK] Salesforce User Info Error:', userInfo);
+      if (!userInfoResponse.ok) {
+        console.error('[SF CALLBACK] Salesforce Identity Error:', userInfo);
+        loginUrlFull.searchParams.set('error', 'user_info_failed');
+        return NextResponse.redirect(loginUrlFull.toString());
+      }
+    } catch (e) {
+      console.error('[SF CALLBACK] Salesforce Identity Fetch Exception:', e);
       loginUrlFull.searchParams.set('error', 'user_info_failed');
       return NextResponse.redirect(loginUrlFull.toString());
     }
 
-    const { email, name, user_id: sf_user_id, organization_id: org_id } = userInfo;
+    // Map attributes from the Salesforce Identity response
+    const email = userInfo.email;
+    const name = userInfo.display_name || userInfo.username;
+    const sf_user_id = userInfo.user_id;
+    const org_id = userInfo.organization_id;
+
     console.log('[SF CALLBACK] User identified:', email, name);
 
     const adminClient = createAdminClient();

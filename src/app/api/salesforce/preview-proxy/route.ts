@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     }
 
     // 5. Generate the Master Preview URL (Stability Redirect)
-    const retURL = `/c/LwcStudio_PreviewEngine.app?c__componentName=${componentName}`;
+    const retURL = `/c/LwcStudio_PreviewEngine.app?c__componentName=${componentName}&_t=${Date.now()}`;
     const frontdoorUrl = `${instance_url}/secur/frontdoor.jsp?sid=${accessToken}&retURL=${encodeURIComponent(retURL)}`;
 
     console.log('[preview-proxy] Redirecting to Master Preview Engine:', frontdoorUrl);

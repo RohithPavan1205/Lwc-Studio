@@ -279,9 +279,10 @@ export default function DashboardPage() {
       if (isConnected) {
         fetchOrgComponents();
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[Dashboard] Load error details:', err);
-      setFetchError(`Failed to load components: ${err.message || 'Unknown error'}`);
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setFetchError(`Failed to load components: ${msg}`);
     } finally {
       setIsLoading(false);
     }
@@ -296,9 +297,10 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error(data.error || 'Failed to fetch org components');
       
       setOrgComponents(data.components || []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Org fetch error:', err);
-      setOrgError(err.message);
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setOrgError(msg);
     } finally {
       setIsOrgLoading(false);
     }
@@ -326,9 +328,10 @@ export default function DashboardPage() {
       // Redirect directly to the editor for this new/updated component
       router.push(`/dashboard/editor/${data.componentId}`);
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Import error:', err);
-      alert('Failed to import: ' + err.message);
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      alert('Failed to import: ' + msg);
     } finally {
       setImportingId(null);
     }

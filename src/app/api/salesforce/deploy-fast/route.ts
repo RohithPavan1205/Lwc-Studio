@@ -73,10 +73,10 @@ async function metadataDeploy(
   }
   const processId = idMatch[1];
 
-  // Poll for completion (max 30s = 15 polls × 2s)
+  // Poll for completion (max 60s = 30 polls × 2s)
   let status = 'InProgress';
   let resultText = '';
-  for (let i = 0; i < 15; i++) {
+  for (let i = 0; i < 30; i++) {
     await new Promise((r) => setTimeout(r, 2000));
 
     const statusSoap = `<?xml version="1.0" encoding="utf-8"?>
@@ -233,9 +233,10 @@ export async function POST(request: Request) {
     const lwcFolder = zip.folder(`lwc/${componentName}`);
     if (!lwcFolder) throw new Error('Zip folder creation failed');
 
-    if (htmlContent) lwcFolder.file(`${componentName}.html`, htmlContent);
-    lwcFolder.file(`${componentName}.js`, jsContent);
-    if (cssContent) lwcFolder.file(`${componentName}.css`, cssContent);
+    // Use explicit undefined checks so that empty strings ("") are still zipped
+    if (htmlContent !== undefined) lwcFolder.file(`${componentName}.html`, htmlContent);
+    if (jsContent !== undefined) lwcFolder.file(`${componentName}.js`, jsContent);
+    if (cssContent !== undefined) lwcFolder.file(`${componentName}.css`, cssContent);
     lwcFolder.file(`${componentName}.js-meta.xml`, metaXmlContent);
 
     if (componentExists) {
@@ -310,21 +311,34 @@ export async function POST(request: Request) {
 </Package>`);
     }
 
-    // ── Step 3: Deploy via Metadata API (guarantees LWC recompilation) ─────────
+    // ── Step 3: Deploy via Metadata API ───────────────────────────────────────
     const zipBase64 = await zip.generateAsync({ type: 'base64' });
-    // Honest label: 'update' = lean LWC-only package, 'first-deploy' = full package with Aura app
     const deployMethod: 'update' | 'first-deploy' = componentExists ? 'update' : 'first-deploy';
-    console.log(`[DeployFast] Deploying via Metadata API [${deployMethod}] (${componentExists ? 'LWC-only' : 'LWC + Aura'})...`);
+    console.log(`[DeployFast] Initiating Metadata Deploy [${deployMethod}]...`);
 
     const result = await metadataDeploy(instance_url, token, zipBase64);
-    const duration = Date.now() - startTime;
-
+    
     if (!result.success) {
+      const duration = Date.now() - startTime;
       console.error(`[DeployFast] Deploy FAILED in ${(duration / 1000).toFixed(1)}s:`, result.error);
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
-    console.log(`[DeployFast] ✅ Completed in ${(duration / 1000).toFixed(1)}s [${deployMethod}]`);
+    // Propagation Buffer: Give Salesforce a moment to reflect changes in the Aura runtime
+    console.log('[DeployFast] Deploy succeeded. Waiting for propagation...');
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // UPDATE Supabase timestamp
+    const { error: dbError } = await adminSupabase
+      .from('components')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('user_id', userId)
+      .eq('name', componentName);
+    
+    if (dbError) console.warn('[DeployFast] Failed to update Supabase timestamp:', dbError);
+
+    const duration = Date.now() - startTime;
+    console.log(`[DeployFast] ✅ Sync Completed in ${(duration / 1000).toFixed(1)}s`);
     return NextResponse.json({ success: true, method: deployMethod, duration });
 
   } catch (err: unknown) {

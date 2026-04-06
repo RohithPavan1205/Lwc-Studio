@@ -298,7 +298,7 @@ export default function SettingsPage() {
                     )}
                     <a
                       id="settings-connect-org-btn"
-                      href="/api/auth/salesforce/login"
+                      href="/api/auth/salesforce"
                       className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#00a1e0] hover:bg-[#0090c7] text-white text-sm font-semibold transition-all"
                     >
                       Connect Salesforce Org

@@ -25,13 +25,13 @@ function LoginContent() {
       {/* Auth Box */}
       <div className="flex flex-col space-y-6">
         <div className="bg-[#161b22] border border-[#30363d] p-6 rounded-xl flex flex-col items-center">
-          <Link 
+          <a 
             href="/api/auth/salesforce"
             className="w-full relative flex items-center justify-center gap-3 bg-[#00a1e0] hover:bg-[#008ec6] text-white px-6 py-3 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-[#00a1e0] focus:ring-offset-2 focus:ring-offset-[#161b22]"
           >
             <Cloud className="w-5 h-5" />
             <span>Continue with Salesforce</span>
-          </Link>
+          </a>
           
           {error && (
             <div className="mt-4 p-3 w-full flex items-center gap-2 rounded bg-red-500/10 border border-red-500/20 text-red-500 text-xs">

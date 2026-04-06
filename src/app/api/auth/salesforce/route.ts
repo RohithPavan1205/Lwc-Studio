@@ -33,7 +33,7 @@ export async function GET() {
       code_challenge: challenge,
       code_challenge_method: 'S256',
     }).toString() + 
-    `&scope=${encodeURIComponent('api refresh_token')}`;
+    `&scope=${encodeURIComponent('api refresh_token web')}`;
 
   return NextResponse.redirect(authUrl);
 }

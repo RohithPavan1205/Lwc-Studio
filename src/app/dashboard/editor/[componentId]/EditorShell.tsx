@@ -5,7 +5,7 @@ import { useEditorStore } from '@/store/editorStore';
 import LwcEditor from '@/components/Editor';
 import PreviewPanel from '@/components/PreviewPanel';
 import NavBar from '@/components/NavBar';
-import { Save, Loader2, CheckCircle, XCircle, Rocket, Zap, X, AlertTriangle } from 'lucide-react';
+import { Save, Loader2, CheckCircle, XCircle, Zap, X, AlertTriangle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface EditorShellProps {

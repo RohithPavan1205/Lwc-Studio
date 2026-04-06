@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import { ChevronRight, Settings, LogOut, Zap } from 'lucide-react';
+import { logout } from '@/app/auth/actions';
 
 export interface Breadcrumb {
   label: string;
@@ -40,13 +41,7 @@ export default function NavBar({
   }, []);
 
   const handleSignOut = async () => {
-    const supabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
+    await logout();
   };
 
   const initials = userFullName

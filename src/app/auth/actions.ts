@@ -1,59 +1,8 @@
 'use server';
 
-import { createClient } from '@/utils/supabase/server';
+import { createClient, createAdminClient } from '@/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-
-export async function login(formData: FormData) {
-  const supabase = createClient();
-
-  if (!supabase) {
-    return { error: 'Supabase configuration is missing or invalid.' };
-  }
-
-  const data = {
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
-  };
-
-  const { error } = await supabase.auth.signInWithPassword(data);
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  revalidatePath('/', 'layout');
-  redirect('/dashboard');
-}
-
-export async function signup(formData: FormData) {
-  const supabase = createClient();
-
-  if (!supabase) {
-    return { error: 'Supabase configuration is missing or invalid.' };
-  }
-
-  const fullName = formData.get('name') as string;
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
-
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        full_name: fullName,
-      },
-    },
-  });
-
-  if (error) {
-    return { error: error.message };
-  }
-
-  revalidatePath('/', 'layout');
-  redirect('/dashboard');
-}
 
 export async function logout() {
   const supabase = createClient();
@@ -61,6 +10,22 @@ export async function logout() {
   if (!supabase) {
     redirect('/login');
     return;
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (user) {
+    const adminClient = createAdminClient();
+    if (adminClient) {
+      // Clear Salesforce tokens
+      await adminClient.from('salesforce_connections')
+        .update({ 
+          access_token: null, 
+          refresh_token: null, 
+          token_expiry: null 
+        })
+        .eq('user_id', user.id);
+    }
   }
 
   const { error } = await supabase.auth.signOut();

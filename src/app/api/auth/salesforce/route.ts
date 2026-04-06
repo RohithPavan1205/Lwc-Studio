@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextResponse } from 'next/server';
 import { generateCodeVerifier, generateCodeChallenge } from '@/utils/crypto/pkce';
 import { cookies } from 'next/headers';
@@ -23,13 +25,13 @@ export async function GET() {
   });
 
   const authUrl = new URL(`${loginUrl}/services/oauth2/authorize`);
-  authUrl.searchParams.append('client_id', clientId);
-  authUrl.searchParams.append('redirect_uri', redirectUri);
-  authUrl.searchParams.append('response_type', 'code');
-  authUrl.searchParams.append('code_challenge', challenge);
-  authUrl.searchParams.append('code_challenge_method', 'S256');
-  authUrl.searchParams.append('scope', 'api web refresh_token');
-  authUrl.searchParams.append('prompt', 'login');
+  authUrl.searchParams.set('client_id', clientId);
+  authUrl.searchParams.set('redirect_uri', redirectUri);
+  authUrl.searchParams.set('response_type', 'code');
+  authUrl.searchParams.set('code_challenge', challenge);
+  authUrl.searchParams.set('code_challenge_method', 'S256');
+  // Salesforce expects space-separated scopes. URLSearchParams.set will encode them.
+  authUrl.searchParams.set('scope', 'api refresh_token openid profile email');
 
   return NextResponse.redirect(authUrl.toString());
 }

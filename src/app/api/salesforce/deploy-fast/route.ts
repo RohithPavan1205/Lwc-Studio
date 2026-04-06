@@ -73,10 +73,10 @@ async function metadataDeploy(
   }
   const processId = idMatch[1];
 
-  // Poll for completion (max 60s = 30 polls × 2s)
+  // Poll for completion (max 30s = 15 polls × 2s)
   let status = 'InProgress';
   let resultText = '';
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 15; i++) {
     await new Promise((r) => setTimeout(r, 2000));
 
     const statusSoap = `<?xml version="1.0" encoding="utf-8"?>
@@ -109,24 +109,11 @@ async function metadataDeploy(
 
   if (status === 'Succeeded') {
     const failCheck = resultText.match(/<success>false<\/success>/);
-    if (!failCheck) return { success: true, processId };
-  }
-
-  // Parse detailed errors from componentFailures
-  const failures: string[] = [];
-  const failureRegex = /<componentFailures>([\s\S]*?)<\/componentFailures>/g;
-  let match;
-  
-  while ((match = failureRegex.exec(resultText)) !== null) {
-    const content = match[1];
-    const fileName = content.match(/<fileName>([\s\S]*?)<\/fileName>/)?.[1]?.trim() || 'unknown';
-    const problem = content.match(/<problem>([\s\S]*?)<\/problem>/)?.[1]?.trim() || 'Unknown error';
-    const line = content.match(/<lineNumber>([\s\S]*?)<\/lineNumber>/)?.[1]?.trim();
-    failures.push(`${fileName}${line ? ` (Line ${line})` : ''}: ${problem}`);
-  }
-
-  if (failures.length > 0) {
-    return { success: false, processId, error: failures.join(' | ') };
+    if (failCheck) {
+      const problemMatch = resultText.match(/<problem>(.*?)<\/problem>/);
+      return { success: false, processId, error: problemMatch?.[1] ?? 'Compilation error' };
+    }
+    return { success: true, processId };
   }
 
   const problemMatch = resultText.match(/<problem>(.*?)<\/problem>/);
@@ -177,7 +164,6 @@ export async function POST(request: Request) {
     console.log(`[DeployFast] Checking if component exists: ${componentName}`);
 
     let componentExists = false;
-    let bundleId = '';
     try {
       const queryStr = `SELECT Id FROM LightningComponentBundle WHERE DeveloperName = '${componentName}'`;
       console.log(`[DeployFast] Running SOQL: ${queryStr}`);
@@ -189,41 +175,12 @@ export async function POST(request: Request) {
       componentExists = existingQuery.totalSize > 0;
       console.log(`[DeployFast] Query result: totalSize=${existingQuery.totalSize}, exists=${componentExists}`);
       if (componentExists) {
-        bundleId = existingQuery.records[0].Id;
-        console.log(`[DeployFast] Found bundle ID: ${bundleId}`);
+        console.log(`[DeployFast] Found bundle ID: ${existingQuery.records[0].Id}`);
       }
     } catch (queryErr) {
-      console.error('[DeployFast] ⚠️ Tooling query FAILED. Falling back to full deploy. Error:', queryErr);
+      // Don't silently fallback — log the full error
+      console.error('[DeployFast] ⚠️  Tooling query FAILED. Falling back to full deploy. Error:', queryErr);
       componentExists = false;
-    }
-
-    // ── Fetch original js-meta.xml to prevent removing targets ─────────────────
-    let metaXmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
-    <apiVersion>58.0</apiVersion>
-    <isExposed>true</isExposed>
-    <targets>
-        <target>lightning__AppPage</target>
-        <target>lightning__RecordPage</target>
-        <target>lightning__HomePage</target>
-    </targets>
-</LightningComponentBundle>`;
-
-    if (componentExists && bundleId) {
-      try {
-        const metaQueryStr = `SELECT Source FROM LightningComponentResource WHERE LightningComponentBundleId = '${bundleId}' AND FilePath LIKE '%.js-meta.xml'`;
-        const metaRes = await toolingGet<{ records: Array<{ Source: string }> }>(
-          instance_url,
-          token,
-          `query?q=${encodeURIComponent(metaQueryStr)}`
-        );
-        if (metaRes.records && metaRes.records.length > 0 && metaRes.records[0].Source) {
-          metaXmlContent = metaRes.records[0].Source;
-          console.log('[DeployFast] Successfully loaded existing js-meta.xml from Org to preserve targets');
-        }
-      } catch (e) {
-        console.warn('[DeployFast] Could not fetch existing js-meta.xml. Proceeding with fallback.', e);
-      }
     }
 
     // ── Step 2: Build ZIP package ─────────────────────────────────────────────
@@ -233,11 +190,19 @@ export async function POST(request: Request) {
     const lwcFolder = zip.folder(`lwc/${componentName}`);
     if (!lwcFolder) throw new Error('Zip folder creation failed');
 
-    // Use explicit undefined checks so that empty strings ("") are still zipped
-    if (htmlContent !== undefined) lwcFolder.file(`${componentName}.html`, htmlContent);
-    if (jsContent !== undefined) lwcFolder.file(`${componentName}.js`, jsContent);
-    if (cssContent !== undefined) lwcFolder.file(`${componentName}.css`, cssContent);
-    lwcFolder.file(`${componentName}.js-meta.xml`, metaXmlContent);
+    if (htmlContent) lwcFolder.file(`${componentName}.html`, htmlContent);
+    lwcFolder.file(`${componentName}.js`, jsContent);
+    if (cssContent) lwcFolder.file(`${componentName}.css`, cssContent);
+    lwcFolder.file(`${componentName}.js-meta.xml`, `<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>58.0</apiVersion>
+    <isExposed>true</isExposed>
+    <targets>
+        <target>lightning__AppPage</target>
+        <target>lightning__RecordPage</target>
+        <target>lightning__HomePage</target>
+    </targets>
+</LightningComponentBundle>`);
 
     if (componentExists) {
       // ── FAST PATH: Component exists → deploy LWC only (skip Aura app) ──────
@@ -311,34 +276,21 @@ export async function POST(request: Request) {
 </Package>`);
     }
 
-    // ── Step 3: Deploy via Metadata API ───────────────────────────────────────
+    // ── Step 3: Deploy via Metadata API (guarantees LWC recompilation) ─────────
     const zipBase64 = await zip.generateAsync({ type: 'base64' });
+    // Honest label: 'update' = lean LWC-only package, 'first-deploy' = full package with Aura app
     const deployMethod: 'update' | 'first-deploy' = componentExists ? 'update' : 'first-deploy';
-    console.log(`[DeployFast] Initiating Metadata Deploy [${deployMethod}]...`);
+    console.log(`[DeployFast] Deploying via Metadata API [${deployMethod}] (${componentExists ? 'LWC-only' : 'LWC + Aura'})...`);
 
     const result = await metadataDeploy(instance_url, token, zipBase64);
-    
+    const duration = Date.now() - startTime;
+
     if (!result.success) {
-      const duration = Date.now() - startTime;
       console.error(`[DeployFast] Deploy FAILED in ${(duration / 1000).toFixed(1)}s:`, result.error);
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
-    // Propagation Buffer: Give Salesforce a moment to reflect changes in the Aura runtime
-    console.log('[DeployFast] Deploy succeeded. Waiting for propagation...');
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    // UPDATE Supabase timestamp
-    const { error: dbError } = await adminSupabase
-      .from('components')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('user_id', userId)
-      .eq('name', componentName);
-    
-    if (dbError) console.warn('[DeployFast] Failed to update Supabase timestamp:', dbError);
-
-    const duration = Date.now() - startTime;
-    console.log(`[DeployFast] ✅ Sync Completed in ${(duration / 1000).toFixed(1)}s`);
+    console.log(`[DeployFast] ✅ Completed in ${(duration / 1000).toFixed(1)}s [${deployMethod}]`);
     return NextResponse.json({ success: true, method: deployMethod, duration });
 
   } catch (err: unknown) {

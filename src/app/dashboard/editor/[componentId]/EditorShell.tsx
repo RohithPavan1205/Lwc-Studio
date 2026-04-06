@@ -5,12 +5,14 @@ import { useEditorStore } from '@/store/editorStore';
 import LwcEditor from '@/components/Editor';
 import PreviewPanel from '@/components/PreviewPanel';
 import NavBar from '@/components/NavBar';
-import { Save, Loader2, CheckCircle, XCircle, Zap, X, AlertTriangle } from 'lucide-react';
+import { Save, Loader2, CheckCircle, XCircle, Rocket, Zap, X, AlertTriangle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 interface EditorShellProps {
   componentId: string;
   componentName: string;
+  projectId: string;
+  projectName: string;
   htmlContent: string;
   jsContent: string;
   cssContent: string;
@@ -30,6 +32,8 @@ interface DeployFastResponse {
 export default function EditorShell({
   componentId,
   componentName,
+  projectId,
+  projectName,
   htmlContent,
   jsContent,
   cssContent,
@@ -246,6 +250,7 @@ export default function EditorShell({
 
   // ── Breadcrumbs ────────────────────────────────────────────────────────────
   const breadcrumbs = [
+    { label: projectName, href: `/dashboard/projects/${projectId}` },
     { label: componentName, href: `/dashboard/editor/${componentId}` },
   ];
 

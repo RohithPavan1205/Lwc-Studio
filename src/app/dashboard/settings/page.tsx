@@ -22,10 +22,10 @@ interface SettingsData {
 export default function SettingsPage() {
   const router = useRouter();
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-  const supabase = createBrowserClient(supabaseUrl, supabaseKey);
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
 
   const [data, setData] = useState<SettingsData>({
     userId: '',
@@ -298,7 +298,7 @@ export default function SettingsPage() {
                     )}
                     <a
                       id="settings-connect-org-btn"
-                      href="/api/auth/salesforce"
+                      href="/api/auth/salesforce/login"
                       className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#00a1e0] hover:bg-[#0090c7] text-white text-sm font-semibold transition-all"
                     >
                       Connect Salesforce Org

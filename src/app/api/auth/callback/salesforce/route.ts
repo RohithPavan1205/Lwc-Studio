@@ -152,7 +152,7 @@ export async function GET(request: Request) {
 
     return NextResponse.redirect(baseUrl.toString());
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[SF CALLBACK] Unexpected error:', err);
     const loginUrlError = new URL('/login', request.url);
     loginUrlError.searchParams.set('error', 'unexpected_error');

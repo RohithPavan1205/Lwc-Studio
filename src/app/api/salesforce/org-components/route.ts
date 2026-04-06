@@ -5,10 +5,10 @@ import { checkAndRefreshToken } from '@/utils/salesforce';
 import { createClient } from '@/utils/supabase/server';
 
 // Simple in-memory cache
-const cache = new Map<string, { data: any, timestamp: number }>();
+const cache = new Map<string, { data: unknown, timestamp: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
   try {
     const supabase = createClient();
     if (!supabase) {
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
 
     // Fetch resources for each bundle
     // We use Promise.all to fetch them in parallel for speed.
-    const components = await Promise.all(bundles.map(async (bundle: any) => {
+    const components = await Promise.all(bundles.map(async (bundle: { Id: string, DeveloperName: string, Description?: string, LastModifiedDate: string }) => {
       const resourceQuery = encodeURIComponent(`SELECT FilePath, Source FROM LightningComponentResource WHERE LightningComponentBundleId = '${bundle.Id}'`);
       
       const res = await fetch(`${instanceUrl}/services/data/v58.0/tooling/query?q=${resourceQuery}`, {
@@ -103,8 +103,9 @@ export async function GET(request: Request) {
     cache.set(user.id, { data: components, timestamp: Date.now() });
 
     return NextResponse.json({ components });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[SF Org Sync] Error fetching org components:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const msg = error instanceof Error ? error.message : 'Unknown server error';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

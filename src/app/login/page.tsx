@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { Cloud, AlertTriangle } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';

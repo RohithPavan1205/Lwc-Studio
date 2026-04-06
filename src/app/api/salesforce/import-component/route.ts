@@ -87,8 +87,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, componentId });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[SF Import] Unexpected error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const msg = error instanceof Error ? error.message : 'Unknown server error';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

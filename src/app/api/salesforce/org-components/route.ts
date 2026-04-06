@@ -8,7 +8,7 @@ import { createClient } from '@/utils/supabase/server';
 const cache = new Map<string, { data: unknown, timestamp: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-export async function GET(_request: Request) {
+export async function GET() {
   try {
     const supabase = createClient();
     if (!supabase) {

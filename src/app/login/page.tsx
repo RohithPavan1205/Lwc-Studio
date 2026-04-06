@@ -1,7 +1,11 @@
 import Link from 'next/link';
-import { Cloud } from 'lucide-react';
+import { Cloud, AlertTriangle } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 
 export default function LoginPage() {
+  const searchParams = useSearchParams();
+  const error = searchParams.get('error');
+
   return (
     <main className="min-h-screen flex items-center justify-center p-4 bg-[#0d1117]">
       <div className="w-full max-w-[400px] flex flex-col space-y-8">
@@ -19,6 +23,16 @@ export default function LoginPage() {
         {/* Auth Box */}
         <div className="flex flex-col space-y-6">
           <div className="bg-[#161b22] border border-[#30363d] p-6 rounded-xl flex flex-col items-center">
+            {error && (
+              <div className="w-full mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-semibold text-red-500 uppercase tracking-wider">Authentication Error</p>
+                  <p className="text-xs text-red-400/80 leading-relaxed capitalize">{error.replace(/_/g, ' ')}</p>
+                </div>
+              </div>
+            )}
+
             <Link 
               href="/api/auth/salesforce"
               className="w-full relative flex items-center justify-center gap-3 bg-[#00a1e0] hover:bg-[#008ec6] text-white px-6 py-3 rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-[#00a1e0] focus:ring-offset-2 focus:ring-offset-[#161b22]"

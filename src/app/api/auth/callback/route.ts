@@ -35,6 +35,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    console.log('[SF CALLBACK] Exchanging code for tokens...');
     const tokenResponse = await fetch(`${sfLoginUrl}/services/oauth2/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -51,31 +52,33 @@ export async function GET(request: Request) {
     const tokenData = await tokenResponse.json();
 
     if (!tokenResponse.ok) {
-      console.error('Salesforce Token Error:', tokenData);
+      console.error('[SF CALLBACK] Salesforce Token Error:', tokenData);
       loginUrlFull.searchParams.set('error', 'token_exchange_failed');
       return NextResponse.redirect(loginUrlFull.toString());
     }
 
     const { access_token, refresh_token, instance_url } = tokenData;
+    console.log('[SF CALLBACK] Tokens received. Instance URL:', instance_url);
 
-    // Fetch user info from Salesforce
-    const userInfoResponse = await fetch(`${sfLoginUrl}/services/oauth2/userinfo`, {
+    // Fetch user info from Salesforce - using instance_url/services/oauth2/userinfo is often more reliable
+    console.log('[SF CALLBACK] Fetching user info...');
+    const userInfoResponse = await fetch(`${instance_url}/services/oauth2/userinfo`, {
       headers: { Authorization: `Bearer ${access_token}` },
     });
     const userInfo = await userInfoResponse.json();
 
     if (!userInfoResponse.ok) {
-      console.error('Salesforce User Info Error:', userInfo);
+      console.error('[SF CALLBACK] Salesforce User Info Error:', userInfo);
       loginUrlFull.searchParams.set('error', 'user_info_failed');
       return NextResponse.redirect(loginUrlFull.toString());
     }
 
     const { email, name, user_id: sf_user_id, organization_id: org_id } = userInfo;
-
-    console.log('SF User Info:', { email, name, sf_user_id, org_id });
+    console.log('[SF CALLBACK] User identified:', email, name);
 
     const adminClient = createAdminClient();
     if (!adminClient) {
+      console.error('[SF CALLBACK] Supabase Admin Client Failed to Initialize');
       loginUrlFull.searchParams.set('error', 'supabase_admin_missing');
       return NextResponse.redirect(loginUrlFull.toString());
     }
@@ -84,36 +87,55 @@ export async function GET(request: Request) {
     const tempPassword = crypto.randomBytes(32).toString('hex') + 'A1!';
     let userId = null;
 
-    // We can query the profiles table by email
-    const { data: existingProfile } = await adminClient.from('profiles').select('user_id').eq('email', email).maybeSingle();
+    console.log('[SF CALLBACK] Checking for existing user in profiles...');
+    const { data: existingProfile, error: profileError } = await adminClient
+      .from('profiles')
+      .select('user_id')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('[SF CALLBACK] Profile Check Error:', profileError);
+    }
 
     if (existingProfile && existingProfile.user_id) {
       userId = existingProfile.user_id;
-      // Update password so we can sign in
+      console.log('[SF CALLBACK] Found existing user:', userId);
       const { error: updateError } = await adminClient.auth.admin.updateUserById(userId, { password: tempPassword });
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('[SF CALLBACK] Auth Update Error:', updateError);
+        throw updateError;
+      }
     } else {
-      // Create new Auth User
+      console.log('[SF CALLBACK] Creating new auth user for:', email);
       const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email,
         password: tempPassword,
         email_confirm: true,
       });
-      if (createError) throw createError;
+      if (createError) {
+        console.error('[SF CALLBACK] Auth Creation Error:', createError);
+        throw createError;
+      }
       userId = newUser.user.id;
     }
 
     // 2. Sign in via SSR client to set cookies
+    console.log('[SF CALLBACK] Establishing session...');
     const supabase = createClient();
     if (supabase) {
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password: tempPassword,
       });
-      if (signInError) throw signInError;
+      if (signInError) {
+        console.error('[SF CALLBACK] Session Establishment Error:', signInError);
+        throw signInError;
+      }
     }
 
     // 3. Upsert profiles
+    console.log('[SF CALLBACK] Syncing profile and connection...');
     await adminClient.from('profiles').upsert({
       user_id: userId,
       email,
@@ -135,11 +157,12 @@ export async function GET(request: Request) {
     }, { onConflict: 'user_id' });
 
     cookies().delete('code_verifier');
+    console.log('[SF CALLBACK] Success! Redirecting to dashboard.');
 
     return NextResponse.redirect(baseUrl.toString());
 
   } catch (err) {
-    console.error('Unexpected error during SF callback:', err);
+    console.error('[SF CALLBACK] Unexpected error:', err);
     loginUrlFull.searchParams.set('error', 'unexpected_error');
     return NextResponse.redirect(loginUrlFull.toString());
   }

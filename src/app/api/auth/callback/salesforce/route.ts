@@ -92,7 +92,9 @@ export async function GET(request: Request) {
       targetUserId = currentUser.id;
     } else {
       // If no session, try to find a user by this email in our DB
-      console.log('[SF CALLBACK] No session. Checking if email exists:', email);
+      console.log('[SF CALLBACK] No session. Checking if email exists everywhere:', email);
+      
+      // 1. Check profiles
       const { data: profileByEmail } = await adminClient
         .from('profiles')
         .select('id')
@@ -101,25 +103,31 @@ export async function GET(request: Request) {
 
       if (profileByEmail) {
         targetUserId = profileByEmail.id;
-        console.log('[SF CALLBACK] Found existing user by email:', targetUserId);
+        console.log('[SF CALLBACK] Found existing user by profile:', targetUserId);
       } else {
-        // Create a new user if absolutely necessary (Registration flow)
-        console.log('[SF CALLBACK] Truly new user. Creating account...');
-        const tempPassword = crypto.randomBytes(32).toString('hex') + 'A1!';
-        const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
-          email,
-          password: tempPassword,
-          email_confirm: true,
-        });
+        // 2. Check Auth system directly (just in case profile is missing but user exists)
+        const { data: authUsers } = await adminClient.auth.admin.listUsers();
+        const existingAuthUser = authUsers.users.find(u => u.email === email);
 
-        if (createError) {
-          console.error('[SF CALLBACK] User creation failed:', createError);
-          throw createError;
+        if (existingAuthUser) {
+          targetUserId = existingAuthUser.id;
+          console.log('[SF CALLBACK] Found existing user by Auth ID:', targetUserId);
+        } else {
+          // 3. Create a new user if absolutely necessary
+          console.log('[SF CALLBACK] Truly new user. Creating account...');
+          const tempPassword = crypto.randomBytes(32).toString('hex') + 'A1!';
+          const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
+            email,
+            password: tempPassword,
+            email_confirm: true,
+          });
+
+          if (createError) throw createError;
+          targetUserId = newUser.user.id;
+          
+          // Log them in immediately so the connection persists
+          await supabase.auth.signInWithPassword({ email, password: tempPassword });
         }
-        targetUserId = newUser.user.id;
-        
-        // Log them in immediately so the connection persists
-        await supabase.auth.signInWithPassword({ email, password: tempPassword });
       }
     }
 
@@ -152,10 +160,11 @@ export async function GET(request: Request) {
 
     return NextResponse.redirect(baseUrl.toString());
 
-  } catch (err: unknown) {
-    console.error('[SF CALLBACK] Unexpected error:', err);
+  } catch (err: any) {
+    console.error('[SF CALLBACK] Unexpected error details:', err);
     const loginUrlError = new URL('/login', request.url);
-    loginUrlError.searchParams.set('error', 'unexpected_error');
+    const msg = err?.message || 'unknown_error';
+    loginUrlError.searchParams.set('error', `callback_failed_${msg}`);
     return NextResponse.redirect(loginUrlError.toString());
   }
 }

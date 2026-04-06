@@ -160,10 +160,10 @@ export async function GET(request: Request) {
 
     return NextResponse.redirect(baseUrl.toString());
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[SF CALLBACK] Unexpected error details:', err);
     const loginUrlError = new URL('/login', request.url);
-    const msg = err?.message || 'unknown_error';
+    const msg = err instanceof Error ? err.message : 'unknown_error';
     loginUrlError.searchParams.set('error', `callback_failed_${msg}`);
     return NextResponse.redirect(loginUrlError.toString());
   }

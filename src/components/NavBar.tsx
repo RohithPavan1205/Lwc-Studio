@@ -2,8 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { createBrowserClient } from '@supabase/ssr';
 import { ChevronRight, Settings, LogOut, Zap } from 'lucide-react';
 import { logout } from '@/app/auth/actions';
 
@@ -25,7 +23,6 @@ export default function NavBar({
   isOrgConnected,
   breadcrumbs,
 }: NavBarProps) {
-  const router = useRouter();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 

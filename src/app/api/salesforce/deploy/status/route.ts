@@ -122,7 +122,7 @@ export async function GET(request: Request) {
 
       // Extract structured errors
       const structuredErrors: { fileName: string; problem: string; lineNumber: number; columnNumber: number }[] = [];
-      const failureMatches = [...deployResultStr.matchAll(/<componentFailures>([\s\S]*?)<\/componentFailures>/g)];
+      const failureMatches = Array.from(deployResultStr.matchAll(/<componentFailures>([\s\S]*?)<\/componentFailures>/g));
 
       for (const match of failureMatches) {
         const failureStr = match[1];

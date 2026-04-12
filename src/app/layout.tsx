@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-page-custom-font */
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import { DM_Mono } from 'next/font/google';

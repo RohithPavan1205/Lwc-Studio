@@ -37,7 +37,7 @@ export async function GET(request: Request) {
         }
         accessToken = cached.accessToken;
         resolvedInstanceUrl = cached.instanceUrl;
-      } catch (err) {
+      } catch {
         return NextResponse.json(
           { error: 'Invalid session reference. Please re-deploy.' },
           { status: 401 }
@@ -121,7 +121,7 @@ export async function GET(request: Request) {
       const faultMatch = deployResultStr.match(/<faultstring>([\s\S]*?)<\/faultstring>/);
 
       // Extract structured errors
-      const structuredErrors: any[] = [];
+      const structuredErrors: { fileName: string; problem: string; lineNumber: number; columnNumber: number }[] = [];
       const failureMatches = [...deployResultStr.matchAll(/<componentFailures>([\s\S]*?)<\/componentFailures>/g)];
 
       for (const match of failureMatches) {

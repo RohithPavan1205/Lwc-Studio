@@ -38,8 +38,8 @@ export async function GET(request: Request) {
 
     try {
       await checkAndRefreshToken(user.id);
-    } catch (err: any) {
-      if (err.name === 'REAUTH_REQUIRED') {
+    } catch (err: unknown) {
+      if ((err as Error).name === 'REAUTH_REQUIRED') {
         return NextResponse.json({ error: 'REAUTH_REQUIRED' }, { status: 401 });
       }
       throw err;
@@ -176,7 +176,7 @@ export async function GET(request: Request) {
                   if (decoded.includes('<targetConfig')) {
                     tcStr = decoded;
                   }
-                } catch(e) {}
+                } catch {}
               }
               if (!tcStr.includes('<targetConfigs>')) {
                  generatedXml += `    <targetConfigs>\n${tcStr}\n    </targetConfigs>\n`;
@@ -204,8 +204,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[salesforce/import]', err);
-    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+    return NextResponse.json({ error: (err as Error).message || 'Server error' }, { status: 500 });
   }
 }

@@ -54,8 +54,8 @@ export default function ImportModal({ isOpen, onClose, onComplete, existingCompo
       if (!res.ok) throw new Error(data.error || 'Failed to list components');
       
       setComponents(data.components || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }

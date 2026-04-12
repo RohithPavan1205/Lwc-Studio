@@ -16,7 +16,6 @@ import {
   BarChart2,
   AlertTriangle,
   Zap,
-  ChevronRight,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import TopNavbar from '@/components/navigation/TopNavbar';

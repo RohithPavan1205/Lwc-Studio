@@ -1,8 +1,7 @@
-import { type NextRequest, NextResponse } from 'next/server';
+import { type NextRequest } from 'next/server';
 import { updateSession } from '@/utils/supabase/middleware';
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
 
   // Run Supabase session refresh for all matched paths
   const response = await updateSession(request);

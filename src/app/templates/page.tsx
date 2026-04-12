@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import { useState } from 'react';
@@ -5,7 +6,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   CheckCircle2,
-  Zap,
   ArrowUpRight,
   User
 } from 'lucide-react';

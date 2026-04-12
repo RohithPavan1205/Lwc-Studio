@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import React, { useEffect, useCallback, useRef, useState } from 'react';
@@ -22,7 +23,7 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { EditorError } from '@/components/Editor';
-import { createBrowserClient } from '@supabase/ssr';
+
 
 // ─── Setup Banner ─────────────────────────────────────────────────────────────
 
@@ -581,9 +582,7 @@ export default function EditorShell({
   const previewAvailable =
     (deployStatus === 'success' || !!lastDeployedAt) && !isSetupInProgress;
 
-  const user = userEmail
-    ? { name: userFullName, email: userEmail }
-    : undefined;
+
 
   return (
     <div className="flex flex-col h-screen bg-[var(--bg-void)] overflow-hidden">

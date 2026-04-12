@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
@@ -8,10 +9,8 @@ import {
   ChevronRight,
   Settings,
   LogOut,
-  Zap,
   AlertCircle,
   LayoutDashboard,
-  User,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -208,8 +207,6 @@ export default function TopNavbar({
   user,
   rightContent,
 }: TopNavbarProps) {
-  const pathname = usePathname();
-
   return (
     <nav className="forge-navbar">
       {/* Left Zone: Logo + Breadcrumbs */}

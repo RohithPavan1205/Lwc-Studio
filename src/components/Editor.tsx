@@ -1,7 +1,9 @@
+/* eslint-disable @next/next/no-img-element */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import Editor, { loader } from '@monaco-editor/react';
+import Editor from '@monaco-editor/react';
 
 export interface EditorError {
   fileName: string;

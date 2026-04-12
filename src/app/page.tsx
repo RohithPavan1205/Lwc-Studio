@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
@@ -6,14 +7,11 @@ import { useSearchParams } from 'next/navigation';
 import {
   Zap,
   ArrowRight,
-  Code2,
   Eye,
   Rocket,
-  ChevronRight,
   Cloud,
   Loader2,
   CheckCircle,
-  Terminal,
 } from 'lucide-react';
 
 

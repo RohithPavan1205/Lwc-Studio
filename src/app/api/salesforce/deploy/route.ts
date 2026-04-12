@@ -181,7 +181,7 @@ export async function POST(request: Request) {
     if (!metaXmlContent) {
       const isExposed = component.is_exposed !== false; // default true
       const masterLabel = component.master_label || 
-        componentName.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase());
+        componentName.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, (c: string) => c.toUpperCase());
       const description = component.description ? `    <description>${component.description}</description>\n` : '';
       
       let targetXml = '';

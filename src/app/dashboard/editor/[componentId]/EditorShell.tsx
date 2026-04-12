@@ -273,8 +273,6 @@ interface EditorShellProps {
   cssContent: string;
   xmlContent: string;
   userId: string;
-  userFullName: string;
-  userEmail: string;
   isOrgConnected: boolean;
 }
 

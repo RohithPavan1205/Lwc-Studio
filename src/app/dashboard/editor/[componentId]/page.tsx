@@ -58,16 +58,12 @@ export default async function EditorPage({ params }: EditorPageProps) {
     );
   }
 
-  // ── 3. Fetch supporting data in parallel ──────────────────────────────────
-  const [profileResult, sfConnResult] = await Promise.all([
-    supabase.from('profiles').select('full_name').eq('id', user.id).single(),
-    // Use the same user's client — RLS handles access control
-    supabase
-      .from('salesforce_connections')
-      .select('id')
-      .eq('user_id', user.id)
-      .maybeSingle(),
-  ]);
+  // ── 3. Check if org is connected ───────────────────────────────────────────
+  const sfConnResult = await supabase
+    .from('salesforce_connections')
+    .select('id')
+    .eq('user_id', user.id)
+    .maybeSingle();
 
   const isOrgConnected = !!sfConnResult.data;
 
@@ -80,8 +76,6 @@ export default async function EditorPage({ params }: EditorPageProps) {
       cssContent={component.css_content ?? ''}
       xmlContent={component.meta_xml ?? ''}
       userId={user.id}
-      userFullName={profileResult.data?.full_name ?? ''}
-      userEmail={user.email ?? ''}
       isOrgConnected={isOrgConnected}
     />
   );

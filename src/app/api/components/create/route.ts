@@ -107,7 +107,7 @@ export async function POST(request: Request) {
     // Master label fallback: insert spaces before uppercase letters
     const finalMasterLabel =
       masterLabel ||
-      name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase());
+      name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, (c: string) => c.toUpperCase());
 
     // ── Insert into Supabase ───────────────────────────────────────────────────
     const now = new Date().toISOString();

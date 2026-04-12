@@ -295,8 +295,6 @@ export default function EditorShell({
   jsContent,
   cssContent,
   xmlContent,
-  userFullName,
-  userEmail,
   isOrgConnected,
 }: EditorShellProps) {
   const {

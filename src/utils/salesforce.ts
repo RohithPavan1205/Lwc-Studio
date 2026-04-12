@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server';
+import { encryptToken, decryptToken } from '@/utils/crypto/tokens';
 
 
 export async function checkAndRefreshToken(userId: string): Promise<string | null> {
@@ -17,6 +18,9 @@ export async function checkAndRefreshToken(userId: string): Promise<string | nul
     return null;
   }
 
+  const decryptedAccessToken = decryptToken(connection.access_token);
+  const decryptedRefreshToken = connection.refresh_token ? decryptToken(connection.refresh_token) : null;
+
   const now = new Date();
   const expiryTime = connection.token_expiry ? new Date(connection.token_expiry) : new Date(0);
   
@@ -25,7 +29,7 @@ export async function checkAndRefreshToken(userId: string): Promise<string | nul
 
   if (fiveMinutesFromNow >= expiryTime) {
     console.log('Token expiring soon or expired. Refreshing...');
-    if (!connection.refresh_token) {
+    if (!decryptedRefreshToken) {
       console.error('No refresh token available to refresh access_token.');
       return null;
     }
@@ -50,7 +54,7 @@ export async function checkAndRefreshToken(userId: string): Promise<string | nul
           grant_type: 'refresh_token',
           client_id: clientId,
           client_secret: clientSecret,
-          refresh_token: connection.refresh_token,
+          refresh_token: decryptedRefreshToken,
         }),
       });
 
@@ -58,12 +62,18 @@ export async function checkAndRefreshToken(userId: string): Promise<string | nul
 
       if (!response.ok) {
         console.error('Failed to refresh token API:', data);
+        if (data.error === 'invalid_grant') {
+          await supabase.from('salesforce_connections').update({ is_valid: false }).eq('user_id', userId);
+          const error = new Error('Re-authentication required');
+          error.name = 'REAUTH_REQUIRED';
+          throw error;
+        }
         return null;
       }
 
       const newAccessToken = data.access_token;
       // Salesforce doesn't always send a new refresh token, fallback to old one if missing
-      const newRefreshToken = data.refresh_token || connection.refresh_token; 
+      const newRefreshToken = data.refresh_token || decryptedRefreshToken; 
       
       // Let's set the new expiry to 2 hours from now
       const newExpiry = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
@@ -72,8 +82,8 @@ export async function checkAndRefreshToken(userId: string): Promise<string | nul
       const { error: updateError } = await supabase
         .from('salesforce_connections')
         .update({
-          access_token: newAccessToken,
-          refresh_token: newRefreshToken,
+          access_token: encryptToken(newAccessToken),
+          refresh_token: newRefreshToken ? encryptToken(newRefreshToken) : null,
           token_expiry: newExpiry,
           updated_at: new Date().toISOString(),
         })
@@ -88,10 +98,13 @@ export async function checkAndRefreshToken(userId: string): Promise<string | nul
 
     } catch (err) {
       console.error('Unexpected error during token refresh:', err);
+      if (err instanceof Error && err.name === 'REAUTH_REQUIRED') {
+        throw err;
+      }
       return null;
     }
   }
 
   // Token is still valid
-  return connection.access_token;
+  return decryptedAccessToken;
 }

@@ -6,13 +6,16 @@ export interface ComponentData {
   htmlContent: string;
   jsContent: string;
   cssContent: string;
+  xmlContent: string;
 }
 
-// Deploy states
 export type DeployStatusType = 'idle' | 'deploying' | 'success' | 'error';
 
-// Background setup banner states (Task 3)
-export type SetupBannerState = 'hidden' | 'in-progress' | 'success' | 'error';
+// 'hidden' = never shown / dismissed
+// 'in-progress' = background deploy running
+// 'success' = background deploy succeeded
+// 'error' = background deploy failed
+export type SetupBannerStatus = 'hidden' | 'in-progress' | 'success' | 'error';
 
 interface EditorState {
   // ── Component data ─────────────────────────────────────────────────────────
@@ -24,34 +27,30 @@ interface EditorState {
   lastSavedAt: number | null;
 
   // ── Deploy state ───────────────────────────────────────────────────────────
-  isDeploying: boolean;
-  lastDeployedAt: Date | null;       // null = never deployed this session
+  lastDeployedAt: Date | null;
   deployStatus: DeployStatusType;
   deployError: string | null;
-  lastDeployMethod: 'update' | 'first-deploy' | null;
-  lastDeployDuration: number | null; // ms
+  lastDeployDuration: number | null;
 
-  // ── Background setup banner (Task 3) ──────────────────────────────────────
-  setupBanner: SetupBannerState;
+  // ── Setup banner (background first-deploy) ─────────────────────────────────
+  setupBanner: SetupBannerStatus;
   setupBannerError: string | null;
-
-  // ── Derived ────────────────────────────────────────────────────────────────
-  isDeployed: () => boolean;
 
   // ── Actions ────────────────────────────────────────────────────────────────
   setHtml: (html: string) => void;
   setJs: (js: string) => void;
   setCss: (css: string) => void;
+  setXml: (xml: string) => void;
   setComponentDefinition: (comp: ComponentData) => void;
+  resetComponent: () => void;
   saveComponent: () => Promise<void>;
-  loadComponent: (id: string) => Promise<void>;
 
   // Deploy actions
   setDeployStatus: (status: DeployStatusType, error?: string) => void;
-  setLastDeployedAt: (date: Date, method?: 'update' | 'first-deploy', duration?: number) => void;
+  setLastDeployedAt: (date: Date, duration?: number) => void;
 
   // Setup banner actions
-  setSetupBanner: (state: SetupBannerState, error?: string) => void;
+  setSetupBanner: (status: SetupBannerStatus, error?: string) => void;
   dismissSetupBanner: () => void;
 }
 
@@ -63,23 +62,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     htmlContent: '',
     jsContent: '',
     cssContent: '',
+    xmlContent: '',
   },
   isDirty: false,
   isSaving: false,
   lastSavedAt: null,
 
-  isDeploying: false,
   lastDeployedAt: null,
   deployStatus: 'idle',
   deployError: null,
-  lastDeployMethod: null,
   lastDeployDuration: null,
 
   setupBanner: 'hidden',
   setupBannerError: null,
-
-  // ── Derived ────────────────────────────────────────────────────────────────
-  isDeployed: () => get().lastDeployedAt !== null,
 
   // ── Editor actions ─────────────────────────────────────────────────────────
   setHtml: (html) =>
@@ -100,6 +95,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       isDirty: true,
     })),
 
+  setXml: (xml) =>
+    set((state) => ({
+      currentComponent: { ...state.currentComponent, xmlContent: xml },
+      isDirty: true,
+    })),
+
   setComponentDefinition: (comp) =>
     set({
       currentComponent: comp,
@@ -109,8 +110,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       lastDeployedAt: null,
       deployStatus: 'idle',
       deployError: null,
-      lastDeployMethod: null,
       lastDeployDuration: null,
+      // Reset banner when component changes
+      setupBanner: 'hidden',
+      setupBannerError: null,
+    }),
+
+  resetComponent: () =>
+    set({
+      currentComponent: {
+        id: null,
+        name: 'Untitled',
+        htmlContent: '',
+        jsContent: '',
+        cssContent: '',
+        xmlContent: '',
+      },
+      isDirty: false,
+      deployStatus: 'idle',
       setupBanner: 'hidden',
       setupBannerError: null,
     }),
@@ -118,7 +135,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // ── Save action ────────────────────────────────────────────────────────────
   saveComponent: async () => {
     const { currentComponent, isDirty } = get();
-    if (!isDirty || !currentComponent.id) return;
+    const { id, htmlContent, jsContent, cssContent, xmlContent } = currentComponent;
+    if (!isDirty || !id) return;
 
     set({ isSaving: true });
 
@@ -128,10 +146,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         headers: { 'Content-Type': 'application/json' },
         cache: 'no-store',
         body: JSON.stringify({
-          id: currentComponent.id,
-          htmlContent: currentComponent.htmlContent,
-          jsContent: currentComponent.jsContent,
-          cssContent: currentComponent.cssContent,
+          id,
+          htmlContent,
+          jsContent,
+          cssContent,
+          xmlContent,
         }),
       });
 
@@ -140,42 +159,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       } else {
         const errText = await res.text();
         console.error('[store] Save failed:', errText);
+        // isDirty stays true so user can retry
       }
     } catch (err) {
       console.error('[store] Save crashed:', err);
+      // isDirty stays true so user can retry
     } finally {
       set({ isSaving: false });
-    }
-  },
-
-  // ── Load action ────────────────────────────────────────────────────────────
-  loadComponent: async (id) => {
-    try {
-      const res = await fetch(`/api/components/load/${id}`, { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json() as {
-          id: string; name: string; html_content?: string;
-          js_content?: string; css_content?: string; updated_at?: string;
-        };
-        set({
-          currentComponent: {
-            id: data.id,
-            name: data.name,
-            htmlContent: data.html_content || '',
-            jsContent: data.js_content || '',
-            cssContent: data.css_content || '',
-          },
-          isDirty: false,
-          lastSavedAt: new Date(data.updated_at || Date.now()).getTime(),
-          lastDeployedAt: null,
-          deployStatus: 'idle',
-          deployError: null,
-          lastDeployMethod: null,
-          lastDeployDuration: null,
-        });
-      }
-    } catch (err) {
-      console.error('[store] Load failed:', err);
     }
   },
 
@@ -183,24 +173,27 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setDeployStatus: (status, error) =>
     set({
       deployStatus: status,
-      isDeploying: status === 'deploying',
       deployError: error ?? null,
     }),
 
-  setLastDeployedAt: (date, method, duration) =>
+  setLastDeployedAt: (date, duration) =>
     set({
       lastDeployedAt: date,
       deployStatus: 'success',
-      isDeploying: false,
       deployError: null,
-      lastDeployMethod: method ?? null,
       lastDeployDuration: duration ?? null,
     }),
 
   // ── Setup banner actions ───────────────────────────────────────────────────
-  setSetupBanner: (state, error) =>
-    set({ setupBanner: state, setupBannerError: error ?? null }),
+  setSetupBanner: (status, error) =>
+    set({
+      setupBanner: status,
+      setupBannerError: error ?? null,
+    }),
 
   dismissSetupBanner: () =>
-    set({ setupBanner: 'hidden', setupBannerError: null }),
+    set({
+      setupBanner: 'hidden',
+      setupBannerError: null,
+    }),
 }));

@@ -49,23 +49,27 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Protected paths
-  const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/signup')
   const isDashboard = pathname.startsWith('/dashboard')
 
   // Logic: 
-  // 1. If not logged in and trying to access dashboard -> Redirect to login
+  // 1. If not logged in and trying to access dashboard -> Redirect to landing page (/)
   if (!user && isDashboard) {
     const url = request.nextUrl.clone()
-    url.pathname = '/login'
+    url.pathname = '/'
     return NextResponse.redirect(url)
   }
 
-  // 2. If logged in and trying to access login/signup -> Redirect to dashboard
-  if (user && isAuthPage) {
+  // 2. If logged in and trying to access landing page -> Redirect to dashboard
+  if (user && pathname === '/') {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
     return NextResponse.redirect(url)
   }
+
+  // 3. To handle error cases like ?error=invalid_state on the landing page
+  // we could let them stay, but typically a logged-in user facing an error
+  // should just go to the dashboard where errors can be shown differently.
+  // We'll just do a clean redirect for now.
 
   return supabaseResponse
 }

@@ -1,41 +1,492 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
-import { FolderOpen, ChevronRight, Plus, Box, X, AlertCircle } from 'lucide-react';
-import NavBar from '@/components/NavBar';
+import {
+  Zap,
+  Plus,
+  Search,
+  Trash2,
+  Loader2,
+  MoreHorizontal,
+  AlertCircle,
+  Clock,
+  X,
+  CheckCircle,
+  AlertTriangle,
+  Code2,
+  Download,
+  LayoutTemplate,
+  LayoutGrid,
+  List,
+} from 'lucide-react';
+import TopNavbar from '@/components/navigation/TopNavbar';
+import CreateComponentModal from '@/components/CreateComponentModal';
+import ImportModal from '@/components/ImportModal';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ───────────────────────────────────────────────────────────────────
 
-interface Project {
+interface Component {
   id: string;
   name: string;
-  description: string | null;
+  master_label?: string;
+  api_version?: string;
   created_at: string;
   updated_at: string;
-  componentCount?: number;
 }
 
 interface UserProfile {
   fullName: string;
   email: string;
-  isOrgConnected: boolean;
+  userId: string;
 }
 
-// ─── Skeleton Card ─────────────────────────────────────────────────────────────
+type DeployStatus = 'synced' | 'draft' | 'error' | 'deploying' | 'org-only';
+type FilterTab = 'all' | 'deployed' | 'draft';
+type ViewMode = 'grid' | 'list';
+
+// ─── Deploy Status Pill ───────────────────────────────────────────────────────
+
+function DeployStatusPill({ status }: { status: DeployStatus }) {
+  const configs: Record<DeployStatus, { label: string; cls: string }> = {
+    synced: {
+      label: 'Deployed',
+      cls: 'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[#0a1f10] text-[#3d8b4e] border-[#1a3a22]',
+    },
+    draft: {
+      label: 'Draft',
+      cls: 'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[#1a1500] text-[#856c00] border-[#2a2200]',
+    },
+    error: {
+      label: 'Error',
+      cls: 'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[var(--error-subtle)] text-[var(--error)] border-[var(--error)]',
+    },
+    deploying: {
+      label: 'Deploying',
+      cls: 'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[#0a1520] text-[#2a7ab8] border-[#1a3050] animate-forge-pulse',
+    },
+    'org-only': {
+      label: 'Org Only',
+      cls: 'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[var(--bg-overlay)] text-[var(--text-tertiary)] border-[var(--border-subtle)]',
+    },
+  };
+
+  const dotColors: Record<DeployStatus, string> = {
+    synced: '#3d8b4e',
+    draft: '#856c00',
+    error: 'var(--error)',
+    deploying: '#2a7ab8',
+    'org-only': 'var(--text-tertiary)',
+  };
+
+  const { label, cls } = configs[status];
+  return (
+    <span className={cls}>
+      <span
+        style={{
+          width: 5,
+          height: 5,
+          borderRadius: '50%',
+          background: dotColors[status],
+          display: 'inline-block',
+          flexShrink: 0,
+        }}
+      />
+      {label}
+    </span>
+  );
+}
+
+// ─── Preview Strip ────────────────────────────────────────────────────────────
+
+const PREVIEW_PATTERNS = [
+  // pattern 0 – wide bar + 2 short
+  [
+    { w: '75%', h: 6, accent: true },
+    { w: '45%', h: 6, accent: false },
+    { w: '60%', h: 6, accent: false },
+  ],
+  // pattern 1 – two-col row feel
+  [
+    { w: '55%', h: 6, accent: false },
+    { w: '30%', h: 6, accent: true },
+    { w: '70%', h: 6, accent: false },
+  ],
+  // pattern 2 – table row-ish
+  [
+    { w: '80%', h: 6, accent: false },
+    { w: '50%', h: 6, accent: false },
+    { w: '35%', h: 6, accent: true },
+  ],
+  // pattern 3 – narrow + wide
+  [
+    { w: '35%', h: 6, accent: true },
+    { w: '65%', h: 6, accent: false },
+    { w: '50%', h: 6, accent: false },
+  ],
+];
+
+function ComponentPreviewStrip({ index }: { index: number }) {
+  const pattern = PREVIEW_PATTERNS[index % PREVIEW_PATTERNS.length];
+  return (
+    <div
+      className="rounded-lg mb-4 px-3 py-3 flex flex-col gap-1.5"
+      style={{
+        background: 'var(--bg-void)',
+        border: '0.5px solid var(--border-subtle)',
+        height: 56,
+        justifyContent: 'center',
+      }}
+    >
+      {pattern.map((bar, i) => (
+        <div
+          key={i}
+          style={{
+            width: bar.w,
+            height: bar.h,
+            borderRadius: 3,
+            background: bar.accent ? 'rgba(249,115,22,0.45)' : 'var(--bg-overlay)',
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── Skeleton Card ────────────────────────────────────────────────────────────
 
 function SkeletonCard() {
   return (
-    <div className="bg-[#161b22] border border-[#21262d] rounded-xl p-5 animate-pulse">
-      <div className="h-5 bg-[#21262d] rounded w-2/3 mb-3" />
-      <div className="h-3 bg-[#21262d] rounded w-full mb-1.5" />
-      <div className="h-3 bg-[#21262d] rounded w-4/5 mb-5" />
-      <div className="flex justify-between">
-        <div className="h-3 bg-[#21262d] rounded w-20" />
-        <div className="h-3 bg-[#21262d] rounded w-16" />
+    <div className="forge-card component-card rounded-xl p-5">
+      <div className="flex items-start justify-between mb-4">
+        <div className="skeleton h-9 w-9 rounded-lg" />
+        <div className="skeleton h-5 w-16 rounded-full" />
+      </div>
+      <div className="skeleton h-12 w-full rounded-lg mb-3" />
+      <div className="skeleton h-4 w-3/4 rounded mb-2" />
+      <div className="skeleton h-3 w-1/2 rounded mb-4" />
+      <div className="flex justify-between items-center pt-3 border-t border-[var(--border-subtle)]">
+        <div className="skeleton h-3 w-16 rounded" />
+        <div className="skeleton h-5 w-12 rounded-md" />
+      </div>
+    </div>
+  );
+}
+
+// ─── Component Card (Grid) ────────────────────────────────────────────────────
+
+interface ComponentCardProps {
+  component: Component;
+  onDelete: (c: Component) => void;
+  index: number;
+  status?: DeployStatus;
+}
+
+function ComponentCard({ component, onDelete, index, status = 'draft' }: ComponentCardProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <div
+      className="component-card forge-card interactive relative rounded-xl overflow-hidden group cursor-pointer"
+      style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
+    >
+      {/* Orange top accent on hover */}
+      <div className="absolute left-0 top-0 right-0 h-px bg-[var(--forge-primary)] opacity-0 group-hover:opacity-60 transition-opacity duration-200" />
+
+      <Link href={`/dashboard/editor/${component.id}`} className="block p-5">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-3">
+          <div className="w-9 h-9 rounded-lg bg-[var(--forge-fire)] flex items-center justify-center flex-shrink-0">
+            <Zap size={16} className="text-[var(--forge-primary)]" />
+          </div>
+          <DeployStatusPill status={status} />
+        </div>
+
+        {/* Preview strip */}
+        <ComponentPreviewStrip index={index} />
+
+        {/* Name */}
+        <h3 className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--forge-primary)] transition-colors truncate mb-1">
+          {component.name}
+        </h3>
+        {component.master_label && component.master_label !== component.name && (
+          <p className="text-xs text-[var(--text-tertiary)] truncate mb-1">
+            {component.master_label}
+          </p>
+        )}
+
+        {/* Footer */}
+        <div className="flex items-center justify-between pt-3 border-t border-[var(--border-subtle)] mt-2">
+          <span className="flex items-center gap-1 text-xs text-[var(--text-tertiary)]">
+            <Clock size={10} />
+            {component.updated_at
+              ? formatDistanceToNow(new Date(component.updated_at), { addSuffix: true })
+              : '—'}
+          </span>
+          {component.api_version && (
+            <span
+              className="text-[10px] text-[var(--text-tertiary)] font-code px-1.5 py-0.5 rounded"
+              style={{ background: 'var(--bg-overlay)', border: '0.5px solid var(--border-subtle)' }}
+            >
+              v{component.api_version}
+            </span>
+          )}
+        </div>
+      </Link>
+
+      {/* Overflow menu */}
+      <div className="absolute top-3 right-3" onClick={(e) => e.preventDefault()}>
+        <button
+          onClick={() => setMenuOpen((v) => !v)}
+          className="p-1.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-overlay)] opacity-0 group-hover:opacity-100 transition-all"
+          aria-label="Component options"
+        >
+          <MoreHorizontal size={15} />
+        </button>
+        {menuOpen && (
+          <div className="absolute right-0 mt-1 w-48 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-xl shadow-[var(--shadow-lg)] overflow-hidden z-[200] animate-forge-scale-in">
+            <Link
+              href={`/dashboard/editor/${component.id}`}
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-overlay)] transition-colors"
+            >
+              <Code2 size={14} className="text-[var(--text-secondary)]" />
+              Open Editor
+            </Link>
+            <button
+              onClick={() => { setMenuOpen(false); onDelete(component); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--error)] hover:bg-[var(--error-subtle)] transition-colors"
+            >
+              <Trash2 size={14} />
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Component Row (List view) ────────────────────────────────────────────────
+
+function ComponentRow({ component, onDelete, index, status = 'draft' }: ComponentCardProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  return (
+    <div
+      className="group relative flex items-center gap-4 px-4 py-3.5 rounded-xl border border-[var(--border-subtle)] hover:border-[var(--border-default)] bg-[var(--bg-elevated)] transition-all cursor-pointer"
+      style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
+    >
+      <Link href={`/dashboard/editor/${component.id}`} className="flex items-center gap-4 flex-1 min-w-0">
+        {/* Icon */}
+        <div className="w-8 h-8 rounded-lg bg-[var(--forge-fire)] flex items-center justify-center flex-shrink-0">
+          <Zap size={14} className="text-[var(--forge-primary)]" />
+        </div>
+
+        {/* Name + label */}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--forge-primary)] transition-colors truncate">
+            {component.name}
+          </p>
+          {component.master_label && component.master_label !== component.name && (
+            <p className="text-xs text-[var(--text-tertiary)] truncate">{component.master_label}</p>
+          )}
+        </div>
+
+        {/* Status */}
+        <div className="hidden sm:flex flex-shrink-0">
+          <DeployStatusPill status={status} />
+        </div>
+
+        {/* Meta */}
+        <div className="hidden md:flex items-center gap-1 text-xs text-[var(--text-tertiary)] flex-shrink-0 w-28 justify-end">
+          <Clock size={10} />
+          {component.updated_at
+            ? formatDistanceToNow(new Date(component.updated_at), { addSuffix: true })
+            : '—'}
+        </div>
+
+        {/* Version */}
+        {component.api_version && (
+          <span
+            className="hidden lg:block text-[10px] text-[var(--text-tertiary)] font-code px-1.5 py-0.5 rounded flex-shrink-0"
+            style={{ background: 'var(--bg-overlay)', border: '0.5px solid var(--border-subtle)' }}
+          >
+            v{component.api_version}
+          </span>
+        )}
+      </Link>
+
+      {/* Overflow menu */}
+      <div onClick={(e) => e.preventDefault()} className="flex-shrink-0">
+        <button
+          onClick={() => setMenuOpen((v) => !v)}
+          className="p-1.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-overlay)] opacity-0 group-hover:opacity-100 transition-all"
+          aria-label="Component options"
+        >
+          <MoreHorizontal size={15} />
+        </button>
+        {menuOpen && (
+          <div className="absolute right-4 mt-1 w-48 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-xl shadow-[var(--shadow-lg)] overflow-hidden z-[200] animate-forge-scale-in">
+            <Link
+              href={`/dashboard/editor/${component.id}`}
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-overlay)] transition-colors"
+            >
+              <Code2 size={14} className="text-[var(--text-secondary)]" />
+              Open Editor
+            </Link>
+            <button
+              onClick={() => { setMenuOpen(false); onDelete(component); }}
+              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--error)] hover:bg-[var(--error-subtle)] transition-colors"
+            >
+              <Trash2 size={14} />
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Stats Row ────────────────────────────────────────────────────────────────
+
+function StatsRow({ components, isOrgConnected }: { components: Component[]; isOrgConnected: boolean }) {
+  // Without real deploy status from DB, derive totals from what we have
+  const total = components.length;
+  // Treat "synced" as any component deployed; for now all are draft until you wire real status
+  const deployed = 0;
+  const drafts = total;
+  const apiVersion = components[0]?.api_version ?? '—';
+
+  const stats = [
+    { label: 'Total', value: total, sub: 'Components' },
+    { label: 'Deployed', value: deployed, sub: isOrgConnected ? 'In org' : 'Org disconnected' },
+    { label: 'Drafts', value: drafts, sub: 'Pending deploy' },
+    { label: 'API Version', value: apiVersion ? `v${apiVersion}` : '—', sub: 'Spring \'25' },
+  ];
+
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+      {stats.map((s) => (
+        <div
+          key={s.label}
+          className="rounded-xl px-4 py-3.5"
+          style={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border-subtle)' }}
+        >
+          <p className="text-[10px] font-semibold text-[var(--text-tertiary)] uppercase tracking-widest mb-1.5">
+            {s.label}
+          </p>
+          <p className="text-2xl font-bold text-[var(--text-primary)] leading-none tracking-tight mb-1">
+            {s.value}
+          </p>
+          <p className="text-[11px] text-[var(--text-tertiary)]">{s.sub}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── Empty State ──────────────────────────────────────────────────────────────
+
+function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 text-center">
+      <div className="relative mb-6">
+        <div className="w-20 h-20 rounded-2xl bg-[var(--forge-fire)] flex items-center justify-center">
+          <Zap size={36} className="text-[var(--forge-primary)]" />
+        </div>
+        <div
+          className="absolute inset-0 rounded-2xl animate-forge-pulse"
+          style={{ boxShadow: '0 0 0 0 rgba(247,127,0,0.4)' }}
+        />
+      </div>
+      <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-2">No components yet</h3>
+      <p className="text-sm text-[var(--text-secondary)] max-w-xs leading-relaxed mb-6">
+        Create your first LWC component and start building without the wait.
+      </p>
+      <button
+        id="empty-create-component-btn"
+        onClick={onCreateClick}
+        className="btn-forge-primary onboarding-pulse"
+      >
+        <Plus size={16} />
+        Create Your First Component
+      </button>
+      <p className="mt-4 text-sm text-[var(--text-tertiary)]">
+        Or explore our{' '}
+        <Link
+          href="/templates"
+          className="text-[var(--forge-primary)] hover:text-[var(--forge-glow)] underline underline-offset-2"
+        >
+          Template Gallery →
+        </Link>
+      </p>
+    </div>
+  );
+}
+
+// ─── Delete Modal ─────────────────────────────────────────────────────────────
+
+function DeleteModal({
+  componentName,
+  onConfirm,
+  onCancel,
+  isDeleting,
+}: {
+  componentName: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isDeleting: boolean;
+}) {
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onCancel()}>
+      <div className="modal-content max-w-sm">
+        <div className="p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-[var(--error-subtle)] flex items-center justify-center flex-shrink-0">
+              <Trash2 size={18} className="text-[var(--error)]" />
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-[var(--text-primary)]">Delete Component</h2>
+              <p className="text-xs text-[var(--text-secondary)]">This action cannot be undone</p>
+            </div>
+          </div>
+          <p className="text-sm text-[var(--text-secondary)] mb-6">
+            Permanently delete{' '}
+            <span className="text-[var(--text-primary)] font-medium">{componentName}</span>?
+            This removes all code and version history.
+          </p>
+          <p className="text-xs text-[var(--text-tertiary)] mb-6">
+            Note: This does NOT delete the component from your Salesforce org.
+          </p>
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={onCancel}
+              disabled={isDeleting}
+              className="btn-ghost px-4 py-2 text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              id="confirm-delete-btn"
+              onClick={onConfirm}
+              disabled={isDeleting}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-[var(--error)] hover:bg-red-500 text-white disabled:opacity-50 transition-colors"
+            >
+              {isDeleting ? (
+                <Loader2 size={14} className="animate-forge-spin" />
+              ) : (
+                <Trash2 size={14} />
+              )}
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -43,362 +494,469 @@ function SkeletonCard() {
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
-function Toast({ message, onDone }: { message: string; onDone: () => void }) {
+function Toast({
+  message,
+  type = 'success',
+  onDone,
+}: {
+  message: string;
+  type?: 'success' | 'error';
+  onDone: () => void;
+}) {
   useEffect(() => {
-    const t = setTimeout(onDone, 3000);
+    const t = setTimeout(onDone, 3500);
     return () => clearTimeout(t);
   }, [onDone]);
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-[#238636] text-white text-sm font-medium px-5 py-3 rounded-xl shadow-2xl shadow-black/40 animate-in slide-in-from-bottom-4">
-      <div className="w-2 h-2 rounded-full bg-white" />
-      {message}
+    <div className="fixed bottom-6 right-6 z-[600] flex items-center gap-3 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-xl px-4 py-3 shadow-[var(--shadow-lg)] toast-enter">
+      {type === 'success' ? (
+        <CheckCircle size={16} className="text-[var(--success)]" />
+      ) : (
+        <AlertCircle size={16} className="text-[var(--error)]" />
+      )}
+      <span className="text-sm text-[var(--text-primary)]">{message}</span>
+      <button onClick={onDone} className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] ml-1">
+        <X size={13} />
+      </button>
     </div>
   );
 }
 
-// ─── Create Project Modal ─────────────────────────────────────────────────────
+// ─── Org Disconnected Banner ──────────────────────────────────────────────────
 
-interface CreateProjectModalProps {
-  onClose: () => void;
-  onCreated: (project: Project) => void;
-  userId: string;
-  supabase: ReturnType<typeof createBrowserClient>;
-}
-
-function CreateProjectModal({ onClose, onCreated, userId, supabase }: CreateProjectModalProps) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleCreate = async () => {
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setError('Project name is required.');
-      return;
-    }
-    if (trimmedName.length > 50) {
-      setError('Name must be 50 characters or less.');
-      return;
-    }
-
-    setIsCreating(true);
-    setError('');
-
-    const now = new Date().toISOString();
-    const { data, error: dbError } = await supabase
-      .from('projects')
-      .insert({
-        user_id: userId,
-        name: trimmedName,
-        description: description.trim() || null,
-        created_at: now,
-        updated_at: now,
-      })
-      .select()
-      .single();
-
-    setIsCreating(false);
-
-    if (dbError || !data) {
-      console.error('[Dashboard] Create project error:', dbError);
-      setError(dbError?.message ?? 'Failed to create project. Please try again.');
-      return;
-    }
-
-    onCreated({ ...data, componentCount: 0 });
-    onClose();
-  };
-
+function OrgDisconnectedBanner() {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#161b22] border border-[#30363d] rounded-2xl w-full max-w-md shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#21262d]">
-          <h2 className="text-[#e6edf3] font-semibold text-base">New Project</h2>
-          <button
-            onClick={onClose}
-            className="text-[#8b949e] hover:text-[#e6edf3] transition-colors p-1 rounded-md hover:bg-[#21262d]"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-6 py-5 space-y-4">
-          {error && (
-            <div className="flex items-start gap-2 px-3 py-2.5 bg-[#da3633]/10 border border-[#da3633]/20 rounded-lg text-[#f85149] text-sm">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              {error}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs font-medium text-[#8b949e] uppercase tracking-wider mb-1.5">
-              Project Name <span className="text-[#f85149]">*</span>
-            </label>
-            <input
-              id="new-project-name-input"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Customer Portal"
-              maxLength={50}
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-2.5 text-sm text-[#e6edf3] placeholder:text-[#484f58] focus:outline-none focus:border-[#00a1e0] transition-colors"
-              onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-              autoFocus
-            />
-            <p className="text-xs text-[#484f58] mt-1 text-right">{name.length}/50</p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-[#8b949e] uppercase tracking-wider mb-1.5">
-              Description <span className="text-[#484f58]">(optional)</span>
-            </label>
-            <textarea
-              id="new-project-description-input"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="What is this project for?"
-              maxLength={200}
-              rows={3}
-              className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-4 py-2.5 text-sm text-[#e6edf3] placeholder:text-[#484f58] focus:outline-none focus:border-[#00a1e0] transition-colors resize-none"
-            />
-            <p className="text-xs text-[#484f58] mt-1 text-right">{description.length}/200</p>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#21262d]">
-          <button
-            id="create-project-cancel-btn"
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg text-sm text-[#8b949e] hover:text-[#e6edf3] hover:bg-[#21262d] transition-all"
-          >
-            Cancel
-          </button>
-          <button
-            id="create-project-submit-btn"
-            onClick={handleCreate}
-            disabled={isCreating || !name.trim()}
-            className="px-5 py-2 rounded-lg text-sm font-semibold bg-[#00a1e0] hover:bg-[#0090c7] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-          >
-            {isCreating ? 'Creating...' : 'Create Project'}
-          </button>
-        </div>
-      </div>
+    <div className="inline-banner warning flex-shrink-0">
+      <AlertTriangle size={15} className="flex-shrink-0" />
+      <span className="text-sm flex-1">
+        <strong>Your Salesforce org is disconnected.</strong> Previews and deploys are unavailable.
+      </span>
+      <Link
+        href="/dashboard/settings"
+        className="text-xs font-semibold underline underline-offset-2 whitespace-nowrap"
+      >
+        Reconnect Org →
+      </Link>
+      <button onClick={() => setDismissed(true)} className="ml-2">
+        <X size={13} />
+      </button>
     </div>
   );
 }
 
-// ─── Main Dashboard Page ──────────────────────────────────────────────────────
+// ─── Dashboard Inner ──────────────────────────────────────────────────────────
 
-export default function DashboardPage() {
+function DashboardContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  const supabase = useMemo(
+    () =>
+      createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      ),
+    []
   );
 
-  const [profile, setProfile] = useState<UserProfile>({
-    fullName: '',
-    email: '',
-    isOrgConnected: false,
-  });
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [profile, setProfile] = useState<UserProfile>({ fullName: '', email: '', userId: '' });
+  const [components, setComponents] = useState<Component[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isOrgConnected, setIsOrgConnected] = useState(false);
+  const [apiUsage, setApiUsage] = useState<{ used: number; limit: number } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [userId, setUserId] = useState('');
-  const [toast, setToast] = useState<string | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Component | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const loadData = async () => {
+  useEffect(() => {
+    if (searchParams.get('new') === '1') setShowCreateModal(true);
+  }, [searchParams]);
+
+  const loadData = useCallback(async () => {
     setIsLoading(true);
-    setFetchError(null);
-
     try {
-      // Auth check
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push('/login');
-        return;
-      }
-      setUserId(user.id);
+      if (!user) { router.push('/'); return; }
 
-      // Profile + org connection (parallel)
-      const [profileResult, orgResult, projectsResult] = await Promise.all([
+      const [profileRes, orgRes, componentsRes] = await Promise.all([
         supabase.from('profiles').select('full_name').eq('id', user.id).single(),
         supabase.from('salesforce_connections').select('id').eq('user_id', user.id).maybeSingle(),
         supabase
-          .from('projects')
-          .select('id, name, description, created_at, updated_at')
+          .from('components')
+          .select('id, name, master_label, api_version, created_at, updated_at')
           .eq('user_id', user.id)
           .order('updated_at', { ascending: false }),
       ]);
 
-      setProfile({
-        fullName: profileResult.data?.full_name ?? '',
-        email: user.email ?? '',
-        isOrgConnected: !!orgResult.data,
-      });
+      setProfile({ fullName: profileRes.data?.full_name ?? '', email: user.email ?? '', userId: user.id });
+      setIsOrgConnected(!!orgRes.data);
+      setComponents(componentsRes.data ?? []);
 
-      if (projectsResult.error) throw projectsResult.error;
-
-      // For each project, get the component count
-      const projectsWithCount = await Promise.all(
-        (projectsResult.data ?? []).map(async (proj) => {
-          const { count } = await supabase
-            .from('components')
-            .select('id', { count: 'exact', head: true })
-            .eq('project_id', proj.id);
-          return { ...proj, componentCount: count ?? 0 };
-        })
-      );
-
-      setProjects(projectsWithCount);
+      if (orgRes.data) {
+        fetch('/api/salesforce/api-limits', { cache: 'no-store' })
+          .then((r) => r.json())
+          .then((d) => { if (d.used !== undefined) setApiUsage({ used: d.used, limit: d.limit }); })
+          .catch(() => {});
+      }
     } catch (err) {
       console.error('[Dashboard] Load error:', err);
-      setFetchError('Failed to load your projects. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [supabase, router]);
 
-  useEffect(() => {
-    loadData();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadData(); }, [loadData]);
 
-  const handleProjectCreated = (project: Project) => {
-    setProjects((prev) => [project, ...prev]);
-    setToast('Project created!');
-  };
+  const handleComponentCreated = useCallback(
+    (componentId: string) => { router.push(`/dashboard/editor/${componentId}`); },
+    [router]
+  );
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/components/load/${deleteTarget.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setComponents((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+        setToast({ message: 'Component deleted', type: 'success' });
+      } else {
+        const data = await res.json();
+        setToast({ message: data.error ?? 'Failed to delete', type: 'error' });
+      }
+    } catch {
+      setToast({ message: 'Network error', type: 'error' });
+    } finally {
+      setIsDeleting(false);
+      setDeleteTarget(null);
+    }
+  }, [deleteTarget]);
+
+  // Derive a simple deterministic status per component
+  // Once you have a real `status` column in your DB, replace this
+  const getComponentStatus = useCallback(
+    (component: Component, index: number): DeployStatus => {
+      if (!isOrgConnected) return 'draft';
+      // First 3 components are treated as "synced" as a placeholder
+      // Replace with real DB field: component.deploy_status
+      if (index < 3) return 'synced';
+      return 'draft';
+    },
+    [isOrgConnected]
+  );
+
+  const filteredComponents = useMemo(() => {
+    return components.filter((c, i) => {
+      const status = getComponentStatus(c, i);
+      const matchesSearch =
+        !searchQuery ||
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.master_label ?? '').toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesFilter =
+        activeFilter === 'all' ||
+        (activeFilter === 'deployed' && status === 'synced') ||
+        (activeFilter === 'draft' && status === 'draft');
+
+      return matchesSearch && matchesFilter;
+    });
+  }, [components, searchQuery, activeFilter, getComponentStatus]);
+
+  const filterCounts = useMemo(() => ({
+    all: components.length,
+    deployed: components.filter((_, i) => getComponentStatus(_, i) === 'synced').length,
+    draft: components.filter((_, i) => getComponentStatus(_, i) === 'draft').length,
+  }), [components, getComponentStatus]);
+
+  const user = profile.email ? { name: profile.fullName, email: profile.email } : undefined;
 
   return (
-    <div className="min-h-screen bg-[#0d1117] flex flex-col">
-      <NavBar
-        userFullName={profile.fullName}
-        userEmail={profile.email}
-        isOrgConnected={profile.isOrgConnected}
+    <div className="min-h-screen bg-[var(--bg-void)] flex flex-col">
+      {!isLoading && !isOrgConnected && <OrgDisconnectedBanner />}
+
+      <TopNavbar
+        variant="dashboard"
+        user={user}
+        orgStatus={isOrgConnected ? 'connected' : 'disconnected'}
+        apiUsage={apiUsage ?? undefined}
       />
 
-      <main className="flex-1 px-6 py-8 max-w-6xl mx-auto w-full">
+      <main className="flex-1 px-4 sm:px-6 py-8 max-w-6xl mx-auto w-full">
+
         {/* Page Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-[#e6edf3]">
-              {profile.fullName ? `Welcome back, ${profile.fullName.split(' ')[0]}` : 'Dashboard'}
+            <h1 className="text-xl font-bold text-[var(--text-primary)]">
+              {profile.fullName ? `${profile.fullName.split(' ')[0]}'s Components` : 'My Components'}
             </h1>
-            <p className="text-[#8b949e] text-sm mt-1">Manage your LWC projects and components</p>
+            <p className="text-sm text-[var(--text-secondary)] mt-0.5">
+              Manage your Lightning Web Components
+            </p>
           </div>
-          <button
-            id="new-project-btn"
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#00a1e0] hover:bg-[#0090c7] text-white text-sm font-semibold transition-all shadow-lg shadow-[#00a1e0]/20"
-          >
-            <Plus className="w-4 h-4" />
-            New Project
-          </button>
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="btn-ghost text-sm px-3 py-2"
+            >
+              <Download size={14} />
+              <span className="hidden sm:inline">Import</span>
+            </button>
+            <Link
+              href="/templates"
+              className="btn-ghost text-sm px-3 py-2"
+            >
+              <LayoutTemplate size={14} />
+              <span className="hidden sm:inline">Templates</span>
+            </Link>
+            <button
+              id="new-component-btn"
+              onClick={() => setShowCreateModal(true)}
+              className="btn-forge-primary text-sm px-4 py-2"
+            >
+              <Plus size={15} />
+              New Component
+            </button>
+          </div>
         </div>
 
-        {/* Error state */}
-        {fetchError && (
-          <div className="flex items-center justify-between p-4 bg-[#da3633]/10 border border-[#da3633]/20 rounded-xl text-[#f85149] mb-6">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span className="text-sm">{fetchError}</span>
+        {/* Stats row — only when we have components */}
+        {!isLoading && components.length > 0 && (
+          <StatsRow components={components} isOrgConnected={isOrgConnected} />
+        )}
+
+        {/* Toolbar: search + filter tabs + view toggle */}
+        {components.length > 0 && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
+            {/* Search */}
+            <div className="relative flex-shrink-0">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] pointer-events-none z-10"
+              />
+              <input
+                id="dashboard-search"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search components..."
+                className="forge-input py-2 text-sm w-52"
+                style={{ paddingLeft: '2.25rem' }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
-            <button
-              onClick={loadData}
-              className="text-sm font-medium underline hover:no-underline ml-4"
+
+            {/* Filter tabs */}
+            <div
+              className="flex items-center gap-0.5 p-1 rounded-lg flex-shrink-0"
+              style={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border-subtle)' }}
             >
-              Try again
-            </button>
-          </div>
-        )}
-
-        {/* Loading skeletons */}
-        {isLoading && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {[1, 2, 3].map((i) => <SkeletonCard key={i} />)}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!isLoading && !fetchError && projects.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-20 h-20 rounded-2xl bg-[#161b22] border border-[#21262d] flex items-center justify-center mb-5">
-              <Box className="w-9 h-9 text-[#484f58]" />
-            </div>
-            <p className="text-[#e6edf3] font-semibold text-lg mb-2">No projects yet</p>
-            <p className="text-[#8b949e] text-sm mb-6">Create your first project to get started</p>
-            <button
-              id="empty-create-project-btn"
-              onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#00a1e0] hover:bg-[#0090c7] text-white text-sm font-semibold transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              Create Project
-            </button>
-          </div>
-        )}
-
-        {/* Projects grid */}
-        {!isLoading && projects.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-            {projects.map((project) => (
-              <Link
-                key={project.id}
-                href={`/dashboard/projects/${project.id}`}
-                className="group bg-[#161b22] border border-[#21262d] hover:border-[#00a1e0]/50 rounded-xl p-5 transition-all duration-200 hover:shadow-lg hover:shadow-[#00a1e0]/5 flex flex-col gap-3"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="w-9 h-9 rounded-lg bg-[#00a1e0]/10 flex items-center justify-center flex-shrink-0">
-                    <FolderOpen className="w-4.5 h-4.5 text-[#00a1e0]" size={18} />
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-[#484f58] group-hover:text-[#00a1e0] transition-colors flex-shrink-0 mt-1" />
-                </div>
-
-                <div className="flex-1">
-                  <h3 className="font-semibold text-[#e6edf3] group-hover:text-[#00a1e0] transition-colors text-sm mb-1 truncate">
-                    {project.name}
-                  </h3>
-                  {project.description ? (
-                    <p className="text-[#8b949e] text-xs leading-relaxed line-clamp-2">
-                      {project.description}
-                    </p>
-                  ) : (
-                    <p className="text-[#484f58] text-xs italic">No description</p>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-[#21262d] text-xs text-[#8b949e]">
-                  <span>{project.componentCount ?? 0} component{project.componentCount !== 1 ? 's' : ''}</span>
-                  <span>
-                    {project.updated_at
-                      ? formatDistanceToNow(new Date(project.updated_at), { addSuffix: true })
-                      : '—'}
+              {(['all', 'deployed', 'draft'] as FilterTab[]).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveFilter(tab)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all capitalize"
+                  style={{
+                    background: activeFilter === tab ? 'var(--bg-overlay)' : 'transparent',
+                    color: activeFilter === tab ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                  }}
+                >
+                  {tab === 'all' ? 'All' : tab === 'deployed' ? 'Deployed' : 'Draft'}
+                  <span
+                    className="text-[10px] px-1 py-0 rounded-sm"
+                    style={{
+                      background: activeFilter === tab ? 'var(--forge-fire)' : 'transparent',
+                      color: activeFilter === tab ? 'var(--forge-primary)' : 'var(--text-tertiary)',
+                    }}
+                  >
+                    {filterCounts[tab]}
                   </span>
-                </div>
-              </Link>
-            ))}
+                </button>
+              ))}
+            </div>
+
+            {/* Spacer */}
+            <div className="flex-1" />
+
+            {/* View toggle */}
+            <div
+              className="flex items-center gap-0.5 p-1 rounded-lg flex-shrink-0"
+              style={{ background: 'var(--bg-elevated)', border: '0.5px solid var(--border-subtle)' }}
+            >
+              <button
+                onClick={() => setViewMode('grid')}
+                className="p-1.5 rounded-md transition-all"
+                style={{
+                  background: viewMode === 'grid' ? 'var(--bg-overlay)' : 'transparent',
+                  color: viewMode === 'grid' ? 'var(--forge-primary)' : 'var(--text-tertiary)',
+                }}
+                aria-label="Grid view"
+              >
+                <LayoutGrid size={14} />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className="p-1.5 rounded-md transition-all"
+                style={{
+                  background: viewMode === 'list' ? 'var(--bg-overlay)' : 'transparent',
+                  color: viewMode === 'list' ? 'var(--forge-primary)' : 'var(--text-tertiary)',
+                }}
+                aria-label="List view"
+              >
+                <List size={14} />
+              </button>
+            </div>
           </div>
+        )}
+
+        {/* Loading State */}
+        {isLoading && (
+          <div>
+            <div className="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-widest mb-4">
+              Forge Components
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonCard key={i} />)}
+            </div>
+          </div>
+        )}
+
+        {/* Components */}
+        {!isLoading && (
+          <>
+            {/* No search results */}
+            {searchQuery && filteredComponents.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <Search size={32} className="text-[var(--text-tertiary)] mb-4" />
+                <p className="text-[var(--text-primary)] font-medium mb-2">
+                  No components match &ldquo;{searchQuery}&rdquo;
+                </p>
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="btn-ghost text-sm px-4 py-2 mt-2"
+                >
+                  Clear Search
+                </button>
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!searchQuery && components.length === 0 && (
+              <EmptyState onCreateClick={() => setShowCreateModal(true)} />
+            )}
+
+            {/* Components grid / list */}
+            {filteredComponents.length > 0 && (
+              <div className="mb-10">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-widest">
+                    Forge Components
+                    <span className="ml-2 normal-case font-normal tracking-normal">
+                      ({filteredComponents.length})
+                    </span>
+                  </h2>
+                </div>
+
+                {viewMode === 'grid' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {filteredComponents.map((c, i) => (
+                      <ComponentCard
+                        key={c.id}
+                        component={c}
+                        onDelete={setDeleteTarget}
+                        index={i}
+                        status={getComponentStatus(c, components.indexOf(c))}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {filteredComponents.map((c, i) => (
+                      <ComponentRow
+                        key={c.id}
+                        component={c}
+                        onDelete={setDeleteTarget}
+                        index={i}
+                        status={getComponentStatus(c, components.indexOf(c))}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Filter empty state */}
+            {!searchQuery && filteredComponents.length === 0 && components.length > 0 && (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <p className="text-[var(--text-primary)] font-medium mb-2">
+                  No {activeFilter} components
+                </p>
+                <button
+                  onClick={() => setActiveFilter('all')}
+                  className="btn-ghost text-sm px-4 py-2 mt-2"
+                >
+                  Show All
+                </button>
+              </div>
+            )}
+          </>
         )}
       </main>
 
-      {/* Create Project Modal */}
-      {showCreateModal && userId && (
-        <CreateProjectModal
+      {/* Modals */}
+      {showCreateModal && (
+        <CreateComponentModal
           onClose={() => setShowCreateModal(false)}
-          onCreated={handleProjectCreated}
-          userId={userId}
-          supabase={supabase}
+          onCreated={handleComponentCreated}
         />
       )}
+      {deleteTarget && (
+        <DeleteModal
+          componentName={deleteTarget.name}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
+          isDeleting={isDeleting}
+        />
+      )}
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onDone={() => setToast(null)} />
+      )}
 
-      {/* Toast */}
-      {toast && <Toast message={toast} onDone={() => setToast(null)} />}
+
+      <ImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onComplete={loadData}
+        existingComponentNames={components.map((c) => c.name)}
+      />
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[var(--bg-void)] flex items-center justify-center">
+          <Loader2 size={28} className="animate-forge-spin text-[var(--forge-primary)]" />
+        </div>
+      }
+    >
+      <DashboardContent />
+    </Suspense>
   );
 }

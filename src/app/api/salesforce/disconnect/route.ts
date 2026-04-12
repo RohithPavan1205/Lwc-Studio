@@ -1,14 +1,20 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 
-export async function POST(request: Request) {
-  const supabase = createClient();
-  if (!supabase) return NextResponse.redirect(new URL('/dashboard?error=db_error', request.url));
+export const dynamic = 'force-dynamic';
 
-  const { data: { user } } = await supabase.auth.getUser();
+export async function POST() {
+  const supabase = createClient();
+  if (!supabase) {
+    return NextResponse.json({ error: 'Supabase client error' }, { status: 500 });
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL('/dashboard?error=unauthorized', request.url));
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const { error } = await supabase
@@ -17,9 +23,9 @@ export async function POST(request: Request) {
     .eq('user_id', user.id);
 
   if (error) {
-    console.error('Failed to disconnect org:', error);
-    return NextResponse.redirect(new URL('/dashboard?error=disconnect_failed', request.url));
+    console.error('[disconnect] Failed to disconnect org:', error);
+    return NextResponse.json({ error: 'Failed to disconnect org' }, { status: 500 });
   }
 
-  return NextResponse.redirect(new URL('/dashboard?success=sf_disconnected', request.url));
+  return NextResponse.json({ success: true });
 }

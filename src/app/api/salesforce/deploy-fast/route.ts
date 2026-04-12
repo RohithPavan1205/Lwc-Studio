@@ -1,41 +1,203 @@
 import { NextResponse } from 'next/server';
-import { createClient as createServiceClient } from '@supabase/supabase-js';
 import { checkAndRefreshToken } from '@/utils/salesforce';
+import { createClient } from '@/utils/supabase/server';
+import { SF_METADATA_URL } from '@/utils/salesforce-constants';
 import JSZip from 'jszip';
 
 export const dynamic = 'force-dynamic';
 
-interface DeployFastBody {
-  componentName: string;
-  htmlContent: string;
-  jsContent: string;
-  cssContent: string;
-}
+const LWC_NAME_REGEX = /^[a-z][a-zA-Z0-9]*$/;
 
-interface ToolingQueryResult {
-  records: Array<{ Id: string }>;
-  totalSize: number;
-}
+/**
+ * POST /api/salesforce/deploy-fast
+ *
+ * Synchronous "first deploy" for a newly created component.
+ * Initiates + polls the Salesforce Metadata API until done (or timeout).
+ * Designed to be called from the editor background, not the modal.
+ *
+ * Body: { componentName, htmlContent, jsContent, cssContent }
+ * Returns: { success: true, duration: number } | { error: string }
+ */
+export async function POST(request: Request) {
+  const startTime = Date.now();
 
-async function toolingGet<T>(instanceUrl: string, token: string, path: string): Promise<T> {
-  const res = await fetch(`${instanceUrl}/services/data/v58.0/tooling/${path}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: 'no-store',
-  });
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Tooling GET failed [${res.status}]: ${errText}`);
-  }
-  return res.json() as Promise<T>;
-}
+  try {
+    const { componentName, htmlContent, jsContent, cssContent } = await request.json();
 
-// ── Metadata API SOAP deploy (shared logic) ──────────────────────────────────
-async function metadataDeploy(
-  instanceUrl: string,
-  token: string,
-  zipBase64: string,
-): Promise<{ success: boolean; processId: string; error?: string }> {
-  const deploySoap = `<?xml version="1.0" encoding="utf-8"?>
+    if (!componentName || !jsContent) {
+      return NextResponse.json({ error: 'Missing required fields: componentName and jsContent' }, { status: 400 });
+    }
+
+    if (!LWC_NAME_REGEX.test(componentName)) {
+      return NextResponse.json(
+        { error: 'Invalid component name. Must start with a lowercase letter and contain only alphanumeric characters.' },
+        { status: 400 }
+      );
+    }
+
+    // ── Auth ──────────────────────────────────────────────────────────────────
+    const supabase = createClient();
+    if (!supabase) throw new Error('No Supabase client');
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // ── Fetch component metadata for meta XML ─────────────────────────────────
+    const { data: component } = await supabase
+      .from('components')
+      .select('id, master_label, is_exposed, targets, api_version, description, meta_xml')
+      .eq('name', componentName)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!component) {
+      return NextResponse.json(
+        { error: 'Component not found in database. Ensure it was saved before deploying.' },
+        { status: 404 }
+      );
+    }
+
+    // ── Get valid Salesforce token ─────────────────────────────────────────────
+    const token = await checkAndRefreshToken(user.id);
+    if (!token) {
+      return NextResponse.json(
+        { error: 'No valid Salesforce token. Please reconnect your org.' },
+        { status: 401 }
+      );
+    }
+
+    const { data: conn } = await supabase
+      .from('salesforce_connections')
+      .select('instance_url')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!conn) {
+      return NextResponse.json({ error: 'No Salesforce connection found.' }, { status: 404 });
+    }
+
+    const apiVersion = component.api_version || '62.0';
+
+    // ── Build LWC metadata zip ────────────────────────────────────────────────
+    const zip = new JSZip();
+
+    zip.file(
+      'package.xml',
+      `<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <types>
+        <members>${componentName}</members>
+        <name>LightningComponentBundle</name>
+    </types>
+    <types>
+        <members>LWC_Studio_Preview</members>
+        <name>ApexPage</name>
+    </types>
+    <types>
+        <members>LWC_Studio_Out</members>
+        <name>AuraDefinitionBundle</name>
+    </types>
+    <version>${apiVersion}</version>
+</Package>`
+    );
+
+    // Aura Lightning Out container (needed for VF preview)
+    const auraAppXML = `<aura:application access="GLOBAL" extends="ltng:outApp" />`;
+    const auraAppMetaXML = `<?xml version="1.0" encoding="UTF-8"?>
+<AuraDefinitionBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>62.0</apiVersion>
+    <description>LWC Studio Lightning Out Container</description>
+    <type>Application</type>
+</AuraDefinitionBundle>`;
+
+    const vfPageXML = `<apex:page showHeader="false" sidebar="false" standardStylesheets="false" applyHtmlTag="true" applyBodyTag="true">
+    <html>
+        <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <style>
+                body { margin: 0; padding: 0; background-color: #ffffff; height: 100vh; overflow: auto; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+                #lightning { width: 100%; height: 100%; padding: 16px; box-sizing: border-box; }
+            </style>
+        </head>
+        <body>
+            <apex:includeLightning />
+            <div id="lightning"></div>
+            <script>
+                const urlParams = new URLSearchParams(window.location.search);
+                const cmpName = urlParams.get('c');
+                if (cmpName) {
+                    $Lightning.use("c:LWC_Studio_Out", function() {
+                        $Lightning.createComponent("c:" + cmpName, {}, "lightning", function(cmp) {
+                            console.log('LWC Studio: Component rendered.');
+                        });
+                    });
+                } else {
+                    document.getElementById('lightning').innerHTML = '<h2>Error: No component name provided.</h2>';
+                }
+            </script>
+        </body>
+    </html>
+</apex:page>`;
+
+    const vfPageMetaXML = `<?xml version="1.0" encoding="UTF-8"?>
+<ApexPage xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>62.0</apiVersion>
+    <availableInTouch>true</availableInTouch>
+    <confirmationTokenRequired>false</confirmationTokenRequired>
+    <label>LWC Studio Preview Utility</label>
+</ApexPage>`;
+
+    zip.folder('aura/LWC_Studio_Out')?.file('LWC_Studio_Out.app', auraAppXML);
+    zip.folder('aura/LWC_Studio_Out')?.file('LWC_Studio_Out.app-meta.xml', auraAppMetaXML);
+    zip.folder('pages')?.file('LWC_Studio_Preview.page', vfPageXML);
+    zip.folder('pages')?.file('LWC_Studio_Preview.page-meta.xml', vfPageMetaXML);
+
+    const folder = zip.folder(`lwc/${componentName}`);
+    if (!folder) throw new Error('Failed to create zip folder');
+
+    if (htmlContent) folder.file(`${componentName}.html`, htmlContent);
+    if (cssContent) folder.file(`${componentName}.css`, cssContent);
+    folder.file(`${componentName}.js`, jsContent);
+
+    // Build meta XML
+    let metaXmlContent = component.meta_xml;
+    if (!metaXmlContent) {
+      const isExposed = component.is_exposed !== false;
+      const masterLabel =
+        component.master_label ||
+        componentName.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^./, (c: string) => c.toUpperCase());
+      const description = component.description
+        ? `    <description>${component.description}</description>\n`
+        : '';
+
+      let targetXml = '';
+      if (Array.isArray(component.targets) && component.targets.length > 0) {
+        targetXml =
+          '    <targets>\n' +
+          (component.targets as string[]).map((t) => `        <target>${t}</target>`).join('\n') +
+          '\n    </targets>';
+      } else {
+        targetXml = '    <targets>\n        <target>lightning__AppPage</target>\n    </targets>';
+      }
+
+      metaXmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>${apiVersion}</apiVersion>
+    <isExposed>${isExposed}</isExposed>
+    <masterLabel>${masterLabel}</masterLabel>
+${description}${targetXml}
+</LightningComponentBundle>`;
+    }
+    folder.file(`${componentName}.js-meta.xml`, metaXmlContent);
+
+    const zipBase64 = await zip.generateAsync({ type: 'base64' });
+
+    // ── Initiate SOAP deploy ──────────────────────────────────────────────────
+    const deploySoap = `<?xml version="1.0" encoding="utf-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:met="http://soap.sforce.com/2006/04/metadata">
   <soapenv:Header>
     <met:SessionHeader>
@@ -60,26 +222,33 @@ async function metadataDeploy(
   </soapenv:Body>
 </soapenv:Envelope>`;
 
-  const deployRes = await fetch(`${instanceUrl}/services/Soap/m/58.0`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/xml', SOAPAction: 'deploy' },
-    body: deploySoap,
-  });
+    const deployRes = await fetch(SF_METADATA_URL(conn.instance_url), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/xml', SOAPAction: 'deploy' },
+      body: deploySoap,
+    });
 
-  const deployText = await deployRes.text();
-  const idMatch = deployText.match(/<id>([a-zA-Z0-9]+)<\/id>/);
-  if (!idMatch) {
-    return { success: false, processId: '', error: `Deploy failed to initiate: ${deployText.substring(0, 300)}` };
-  }
-  const processId = idMatch[1];
+    const deployText = await deployRes.text();
+    const idMatch = deployText.match(/<id>([a-zA-Z0-9]+)<\/id>/);
+    if (!idMatch) {
+      console.error('[deploy-fast] Failed to get processId:', deployText);
+      return NextResponse.json(
+        { error: 'Deploy failed to initiate. Check org permissions.' },
+        { status: 500 }
+      );
+    }
 
-  // Poll for completion (max 30s = 15 polls × 2s)
-  let status = 'InProgress';
-  let resultText = '';
-  for (let i = 0; i < 15; i++) {
-    await new Promise((r) => setTimeout(r, 2000));
+    const processId = idMatch[1];
+    console.log('[deploy-fast] Process started:', processId);
 
-    const statusSoap = `<?xml version="1.0" encoding="utf-8"?>
+    // ── Poll for completion (server-side, shorter timeout for "fast" deploy) ──
+    const POLL_TIMEOUT_MS = 90_000; // 90s max
+    let isDone = false;
+    let isSuccess = false;
+    let finalError = 'Deployment timed out';
+    let pollInterval = 2000;
+
+    const checkStatusSoap = (pid: string) => `<?xml version="1.0" encoding="utf-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:met="http://soap.sforce.com/2006/04/metadata">
   <soapenv:Header>
     <met:SessionHeader>
@@ -88,214 +257,66 @@ async function metadataDeploy(
   </soapenv:Header>
   <soapenv:Body>
     <met:checkDeployStatus>
-      <met:asyncProcessId>${processId}</met:asyncProcessId>
+      <met:asyncProcessId>${pid}</met:asyncProcessId>
       <met:includeDetails>true</met:includeDetails>
     </met:checkDeployStatus>
   </soapenv:Body>
 </soapenv:Envelope>`;
 
-    const statusRes = await fetch(`${instanceUrl}/services/Soap/m/58.0`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/xml', SOAPAction: 'checkDeployStatus' },
-      body: statusSoap,
-    });
+    while (!isDone && Date.now() - startTime < POLL_TIMEOUT_MS) {
+      await new Promise<void>((resolve) => setTimeout(resolve, pollInterval));
+      pollInterval = Math.min(pollInterval * 1.4, 8000);
 
-    resultText = await statusRes.text();
-    const statusMatch = resultText.match(/<status>([a-zA-Z]+)<\/status>/);
-    if (statusMatch) status = statusMatch[1];
+      try {
+        const statusRes = await fetch(SF_METADATA_URL(conn.instance_url), {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/xml', SOAPAction: 'checkDeployStatus' },
+          body: checkStatusSoap(processId),
+        });
 
-    if (['Succeeded', 'Failed', 'Canceled'].includes(status)) break;
-  }
+        const statusText = await statusRes.text();
 
-  if (status === 'Succeeded') {
-    const failCheck = resultText.match(/<success>false<\/success>/);
-    if (failCheck) {
-      const problemMatch = resultText.match(/<problem>(.*?)<\/problem>/);
-      return { success: false, processId, error: problemMatch?.[1] ?? 'Compilation error' };
-    }
-    return { success: true, processId };
-  }
+        const doneMatch = statusText.match(/<done>(\w+)<\/done>/);
+        const statusMatch = statusText.match(/<status>(\w+)<\/status>/);
 
-  const problemMatch = resultText.match(/<problem>(.*?)<\/problem>/);
-  return { success: false, processId, error: problemMatch?.[1] ?? `Deploy ended with status: ${status}` };
-}
+        const done = doneMatch?.[1] === 'true';
+        const status = statusMatch?.[1];
 
-export async function POST(request: Request) {
-  const startTime = Date.now();
+        console.log(`[deploy-fast] Poll: done=${done}, status=${status}`);
 
-  try {
-    const body = (await request.json()) as DeployFastBody;
-    const { componentName, htmlContent, jsContent, cssContent } = body;
-
-    if (!componentName || !jsContent) {
-      return NextResponse.json({ error: 'Missing required fields: componentName and jsContent' }, { status: 400 });
-    }
-
-    // ── Auth ──────────────────────────────────────────────────────────────────
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!supabaseUrl || !serviceKey) {
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
-    }
-
-    const adminSupabase = createServiceClient(supabaseUrl, serviceKey);
-    const { createClient } = await import('@/utils/supabase/server');
-    const supabase = createClient();
-    if (!supabase) return NextResponse.json({ error: 'Failed to create Supabase client' }, { status: 500 });
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const userId = user.id;
-
-    // ── Token + Instance URL ──────────────────────────────────────────────────
-    const token = await checkAndRefreshToken(userId);
-    if (!token) return NextResponse.json({ error: 'Salesforce token expired. Reconnect your org.' }, { status: 401 });
-
-    const { data: conn } = await adminSupabase
-      .from('salesforce_connections')
-      .select('instance_url')
-      .eq('user_id', userId)
-      .single();
-
-    if (!conn?.instance_url) return NextResponse.json({ error: 'No Salesforce connection.' }, { status: 404 });
-    const { instance_url } = conn;
-
-    // ── Step 1: Check if bundle already exists (fast Tooling API query) ───────
-    console.log(`[DeployFast] Checking if component exists: ${componentName}`);
-
-    let componentExists = false;
-    try {
-      const queryStr = `SELECT Id FROM LightningComponentBundle WHERE DeveloperName = '${componentName}'`;
-      console.log(`[DeployFast] Running SOQL: ${queryStr}`);
-      const existingQuery = await toolingGet<ToolingQueryResult>(
-        instance_url,
-        token,
-        `query?q=${encodeURIComponent(queryStr)}`
-      );
-      componentExists = existingQuery.totalSize > 0;
-      console.log(`[DeployFast] Query result: totalSize=${existingQuery.totalSize}, exists=${componentExists}`);
-      if (componentExists) {
-        console.log(`[DeployFast] Found bundle ID: ${existingQuery.records[0].Id}`);
-      }
-    } catch (queryErr) {
-      // Don't silently fallback — log the full error
-      console.error('[DeployFast] ⚠️  Tooling query FAILED. Falling back to full deploy. Error:', queryErr);
-      componentExists = false;
-    }
-
-    // ── Step 2: Build ZIP package ─────────────────────────────────────────────
-    const zip = new JSZip();
-
-    // LWC Bundle (always included)
-    const lwcFolder = zip.folder(`lwc/${componentName}`);
-    if (!lwcFolder) throw new Error('Zip folder creation failed');
-
-    if (htmlContent) lwcFolder.file(`${componentName}.html`, htmlContent);
-    lwcFolder.file(`${componentName}.js`, jsContent);
-    if (cssContent) lwcFolder.file(`${componentName}.css`, cssContent);
-    lwcFolder.file(`${componentName}.js-meta.xml`, `<?xml version="1.0" encoding="UTF-8"?>
-<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
-    <apiVersion>58.0</apiVersion>
-    <isExposed>true</isExposed>
-    <targets>
-        <target>lightning__AppPage</target>
-        <target>lightning__RecordPage</target>
-        <target>lightning__HomePage</target>
-    </targets>
-</LightningComponentBundle>`);
-
-    if (componentExists) {
-      // ── FAST PATH: Component exists → deploy LWC only (skip Aura app) ──────
-      console.log('[DeployFast] Fast path: deploying LWC bundle only (no Aura app)');
-
-      zip.file('package.xml', `<?xml version="1.0" encoding="UTF-8"?>
-<Package xmlns="http://soap.sforce.com/2006/04/metadata">
-    <types>
-        <members>${componentName}</members>
-        <name>LightningComponentBundle</name>
-    </types>
-    <version>58.0</version>
-</Package>`);
-
-    } else {
-      // ── FIRST DEPLOY: Include Aura Preview Engine ──────────────────────────
-      console.log('[DeployFast] First deploy: including Aura Preview Engine');
-
-      const auraAppName = 'LwcStudio_PreviewEngine';
-      const auraFolder = zip.folder(`aura/${auraAppName}`);
-
-      if (auraFolder) {
-        auraFolder.file(`${auraAppName}.app`, `<aura:application access="GLOBAL" extends="force:slds">
-    <aura:attribute name="c__componentName" type="String" />
-    <aura:handler name="init" value="{!this}" action="{!c.doInit}"/>
-    
-    <div class="slds-p-around_medium">
-        {!v.body}
-    </div>
-</aura:application>`);
-
-        auraFolder.file(`${auraAppName}Controller.js`, `({
-    doInit: function(component, event, helper) {
-        var compName = component.get("v.c__componentName");
-        console.log('[Lwc-Studio] Preview Engine initializing:', compName);
-        
-        if (compName) {
-            $A.createComponent(
-                "c:" + compName, 
-                {}, 
-                function(newCmp, status, errorMessage) {
-                    if (status === "SUCCESS") {
-                        component.set("v.body", newCmp);
-                    } else {
-                        console.error("[Lwc-Studio] Failed to load [c:" + compName + "]: " + errorMessage);
-                    }
-                }
-            );
+        if (done) {
+          isDone = true;
+          if (status === 'Succeeded') {
+            isSuccess = true;
+          } else {
+            // Extract error details from Salesforce response
+            const problemMatch = statusText.match(/<problem>([\s\S]*?)<\/problem>/);
+            const errorMsg = problemMatch
+              ? problemMatch[1].trim()
+              : `Deployment failed with status: ${status}`;
+            finalError = errorMsg;
+          }
         }
-    }
-})`);
-
-        auraFolder.file(`${auraAppName}.app-meta.xml`, `<?xml version="1.0" encoding="UTF-8"?>
-<AuraDefinitionBundle xmlns="http://soap.sforce.com/2006/04/metadata">
-    <apiVersion>58.0</apiVersion>
-    <description>Universal LWC Studio Preview Engine</description>
-</AuraDefinitionBundle>`);
+      } catch (pollErr) {
+        console.error('[deploy-fast] Poll error:', pollErr);
+        isDone = true;
+        finalError = pollErr instanceof Error ? pollErr.message : 'Status check failed';
       }
-
-      zip.file('package.xml', `<?xml version="1.0" encoding="UTF-8"?>
-<Package xmlns="http://soap.sforce.com/2006/04/metadata">
-    <types>
-        <members>${componentName}</members>
-        <name>LightningComponentBundle</name>
-    </types>
-    <types>
-        <members>LwcStudio_PreviewEngine</members>
-        <name>AuraDefinitionBundle</name>
-    </types>
-    <version>58.0</version>
-</Package>`);
     }
 
-    // ── Step 3: Deploy via Metadata API (guarantees LWC recompilation) ─────────
-    const zipBase64 = await zip.generateAsync({ type: 'base64' });
-    // Honest label: 'update' = lean LWC-only package, 'first-deploy' = full package with Aura app
-    const deployMethod: 'update' | 'first-deploy' = componentExists ? 'update' : 'first-deploy';
-    console.log(`[DeployFast] Deploying via Metadata API [${deployMethod}] (${componentExists ? 'LWC-only' : 'LWC + Aura'})...`);
-
-    const result = await metadataDeploy(instance_url, token, zipBase64);
     const duration = Date.now() - startTime;
 
-    if (!result.success) {
-      console.error(`[DeployFast] Deploy FAILED in ${(duration / 1000).toFixed(1)}s:`, result.error);
-      return NextResponse.json({ error: result.error }, { status: 500 });
+    if (isSuccess) {
+      console.log(`[SetupDeploy] Background deploy successful in: ${duration}ms`);
+      return NextResponse.json({ success: true, duration });
+    } else {
+      console.error(`[SetupDeploy] Background deploy failed: ${finalError}`);
+      return NextResponse.json({ error: finalError }, { status: 500 });
     }
-
-    console.log(`[DeployFast] ✅ Completed in ${(duration / 1000).toFixed(1)}s [${deployMethod}]`);
-    return NextResponse.json({ success: true, method: deployMethod, duration });
-
   } catch (err: unknown) {
-    console.error('[DeployFast] Crash:', err);
+    const duration = Date.now() - startTime;
     const msg = err instanceof Error ? err.message : 'Unknown server error';
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error(`[SetupDeploy] Background deploy failed: ${msg}`);
+    return NextResponse.json({ error: msg, duration }, { status: 500 });
   }
 }

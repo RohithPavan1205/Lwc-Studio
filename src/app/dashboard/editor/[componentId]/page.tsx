@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/utils/supabase/server';
-import { createClient as createAdminClient } from '@supabase/supabase-js';
 import EditorShell from './EditorShell';
 
 interface EditorPageProps {
@@ -9,6 +8,7 @@ interface EditorPageProps {
 
 export default async function EditorPage({ params }: EditorPageProps) {
   const { componentId } = params;
+  console.log('[Page] Loading componentId:', componentId);
 
   // ── 1. Auth check ─────────────────────────────────────────────────────────
   const supabase = createClient();
@@ -23,16 +23,19 @@ export default async function EditorPage({ params }: EditorPageProps) {
     );
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) {
-    return redirect('/login');
+    return redirect('/');
   }
 
-  // ── 2. Load component data (with project info for breadcrumb) ─────────────
+  // ── 2. Load component — ownership enforced by user_id filter ──────────────
   const { data: component, error: compError } = await supabase
     .from('components')
-    .select('id, name, html_content, js_content, css_content, project_id')
+    .select('id, name, html_content, js_content, css_content, meta_xml')
     .eq('id', componentId)
+    .eq('user_id', user.id) // ownership check on server
     .single();
 
   if (compError || !component) {
@@ -41,7 +44,8 @@ export default async function EditorPage({ params }: EditorPageProps) {
         <div className="text-center">
           <p className="text-[#f85149] font-bold text-lg mb-2">Component Not Found</p>
           <p className="text-[#8b949e] text-sm">
-            Component <code className="text-[#79c0ff]">{componentId}</code> does not exist or you don&apos;t have access.
+            Component <code className="text-[#79c0ff]">{componentId}</code> does not exist or you
+            don&apos;t have access.
           </p>
           <a
             href="/dashboard"
@@ -54,46 +58,29 @@ export default async function EditorPage({ params }: EditorPageProps) {
     );
   }
 
-  // ── 3. Fetch project name for breadcrumb ──────────────────────────────────
-  const { data: project } = await supabase
-    .from('projects')
-    .select('id, name')
-    .eq('id', component.project_id)
-    .single();
-
-  // ── 4. Fetch user profile for NavBar ─────────────────────────────────────
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('full_name')
-    .eq('id', user.id)
-    .single();
-
-  // ── 5. Check if Salesforce org is connected (service role to bypass RLS) ──
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
-  let isOrgConnected = false;
-
-  if (supabaseUrl && serviceRoleKey) {
-    const adminSupabase = createAdminClient(supabaseUrl, serviceRoleKey);
-    const { data: sfConn } = await adminSupabase
+  // ── 3. Fetch supporting data in parallel ──────────────────────────────────
+  const [profileResult, sfConnResult] = await Promise.all([
+    supabase.from('profiles').select('full_name').eq('id', user.id).single(),
+    // Use the same user's client — RLS handles access control
+    supabase
       .from('salesforce_connections')
       .select('id')
       .eq('user_id', user.id)
-      .maybeSingle();
-    isOrgConnected = !!sfConn;
-  }
+      .maybeSingle(),
+  ]);
+
+  const isOrgConnected = !!sfConnResult.data;
 
   return (
     <EditorShell
       componentId={componentId}
       componentName={component.name}
-      projectId={component.project_id}
-      projectName={project?.name ?? 'Project'}
       htmlContent={component.html_content ?? ''}
       jsContent={component.js_content ?? ''}
       cssContent={component.css_content ?? ''}
+      xmlContent={component.meta_xml ?? ''}
       userId={user.id}
-      userFullName={profile?.full_name ?? ''}
+      userFullName={profileResult.data?.full_name ?? ''}
       userEmail={user.email ?? ''}
       isOrgConnected={isOrgConnected}
     />

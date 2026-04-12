@@ -1,97 +1,795 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Geist:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ══════════════════════════════════════════════════════════════════
+   LWCFORGE — INDUSTRIAL FORGE DESIGN SYSTEM
+   Theme: Dark, precise, high-contrast. Electric amber on near-black carbon.
+══════════════════════════════════════════════════════════════════ */
+
 :root {
-  /* Architectural Dark Framework Tokens */
-  --background: #131313;
-  --on-background: #e5e2e1;
-  --surface: #131313;
-  --surface-dim: #131313;
-  --surface-bright: #3a3939;
-  --surface-container-lowest: #0e0e0e;
-  --surface-container-low: #1c1b1b;
-  --surface-container: #201f1f;
-  --surface-container-high: #2a2a2a;
-  --surface-container-highest: #353534;
-  --on-surface: #e5e2e1;
-  --on-surface-variant: #c2c6d6;
-  --outline: #8c909f;
-  --outline-variant: rgba(140, 144, 159, 0.15);
+  /* === BACKGROUND LAYERS === */
+  --bg-void:        #0A0B0D;
+  --bg-base:        #0F1114;
+  --bg-surface:     #161A1F;
+  --bg-elevated:    #1C2128;
+  --bg-overlay:     #242B35;
+  --bg-highlight:   #2A3340;
 
-  --primary: #adc6ff;
-  --on-primary: #002e6a;
-  --primary-container: #4d8eff;
-  --on-primary-container: #00285d;
+  /* === BORDERS === */
+  --border-subtle:  #1E2530;
+  --border-default: #2C3543;
+  --border-strong:  #3D4D60;
+  --border-focus:   #F77F00;
 
-  --secondary: #b1c6f9;
-  --on-secondary: #182f59;
-  --secondary-container: #304671;
-  --on-secondary-container: #9fb5e7;
+  /* === BRAND / ACCENT === */
+  --forge-primary:  #F77F00;
+  --forge-glow:     #FF9A2E;
+  --forge-ember:    #D4600A;
+  --forge-fire:     rgba(247,127,0,0.12);
 
-  --tertiary: #ffb786;
-  --on-tertiary: #502400;
-  --tertiary-container: #df7412;
-  --on-tertiary-container: #461f00;
+  /* === SEMANTIC STATUS === */
+  --success:        #22C55E;
+  --success-subtle: rgba(34,197,94,0.10);
+  --warning:        #EAB308;
+  --warning-subtle: rgba(234,179,8,0.10);
+  --error:          #EF4444;
+  --error-subtle:   rgba(239,68,68,0.10);
+  --info:           #3B82F6;
+  --info-subtle:    rgba(59,130,246,0.10);
 
-  --error: #ffb4ab;
-  --on-error: #690005;
+  /* === TEXT === */
+  --text-primary:   #F1F3F6;
+  --text-secondary: #8B96A5;
+  --text-tertiary:  #5A6575;
+  --text-accent:    #F77F00;
+  --text-code:      #A8D8A8;
+  --text-inverse:   #0A0B0D;
 
-  --radius-sm: 2px;
-  --radius-md: 4px;
+  /* === SHADOWS === */
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.5);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.6);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.7);
+  --shadow-xl: 0 16px 48px rgba(0,0,0,0.8);
+  --shadow-forge: 0 0 0 1px rgba(247,127,0,0.3), 0 0 20px rgba(247,127,0,0.15);
+  --shadow-forge-focus: 0 0 0 2px #F77F00, 0 0 0 4px rgba(247,127,0,0.2);
+
+  /* === ANIMATION === */
+  --ease-out:    cubic-bezier(0.0, 0.0, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0.0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-sharp:  cubic-bezier(0.4, 0, 0.6, 1);
+
+  /* === RADIUS === */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-full: 9999px;
+}
+
+/* ── Base Reset ─────────────────────────────────────────────────────── */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
 }
 
 body {
-  color: var(--on-background);
-  background: var(--background);
-  font-family: 'Inter', sans-serif;
+  background-color: var(--bg-void);
+  color: var(--text-primary);
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+  overflow-x: hidden;
 }
 
-@layer base {
-  button, input, textarea {
-    @apply transition-all duration-200;
-  }
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-base); }
+::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+/* Selection */
+::selection { background: rgba(247,127,0,0.25); color: var(--text-primary); }
+
+/* Focus rings */
+:focus-visible {
+  outline: 2px solid var(--forge-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
-@layer components {
-  /* The "No-Line" Rule UI */
-  .void-card {
-    @apply bg-[var(--surface-container-low)] rounded-[var(--radius-md)];
-  }
+/* ── Typography ─────────────────────────────────────────────────────── */
 
-  /* Deep Pockets */
-  .void-sunken {
-    @apply bg-[var(--surface-container-lowest)];
-  }
+.font-display { font-family: 'DM Mono', monospace; }
+.font-ui { font-family: 'Geist', sans-serif; }
+.font-code { font-family: 'JetBrains Mono', 'DM Mono', 'Fira Code', monospace; }
 
-  .void-btn-primary {
-    @apply bg-gradient-to-br from-[var(--primary)] to-[var(--primary-container)] 
-           text-[var(--on-primary)] font-semibold py-3 px-6 
-           rounded-[var(--radius-md)] hover:brightness-110 active:scale-[0.98];
-  }
+/* ── Forge Animations ───────────────────────────────────────────────── */
 
-  .void-btn-secondary {
-    @apply border border-[var(--outline-variant)] text-[var(--primary)] 
-           hover:bg-[var(--surface-bright)] hover:bg-opacity-5 
-           py-3 px-6 rounded-[var(--radius-md)];
-  }
-
-  .void-input {
-    @apply bg-[var(--surface-container-lowest)] border-none 
-           text-[var(--on-surface)] rounded-[var(--radius-md)] 
-           px-4 py-3 focus:ring-0 placeholder:text-[var(--outline)] 
-           placeholder:opacity-50 outline-none;
-  }
-
-  .void-label {
-    @apply block text-[var(--outline)] text-[10px] uppercase tracking-widest mb-2 font-medium;
-  }
+@keyframes forge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
-/* Glassmorphism Rule */
-.void-glass {
-  background: rgba(53, 53, 52, 0.6);
-  backdrop-filter: blur(20px);
+@keyframes forge-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes forge-slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes forge-slide-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes forge-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes forge-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes forge-indeterminate {
+  0%   { transform: translateX(-100%); }
+  50%  { transform: translateX(150%); }
+  100% { transform: translateX(350%); }
+}
+
+@keyframes cardReveal {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes amber-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(247,127,0,0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(247,127,0,0); }
+}
+
+@keyframes toast-enter {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toast-exit {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(100%); }
+}
+
+@keyframes progress-shrink {
+  from { width: 100%; }
+  to   { width: 0%; }
+}
+
+/* ── Utility Classes ─────────────────────────────────────────────────── */
+
+.animate-forge-pulse     { animation: forge-pulse 1.6s ease-in-out infinite; }
+.animate-forge-spin      { animation: forge-spin 1s linear infinite; }
+.animate-forge-slide-in  { animation: forge-slide-in-up 0.25s var(--ease-out) both; }
+.animate-forge-scale-in  { animation: forge-scale-in 0.2s var(--ease-spring) both; }
+.animate-shimmer {
+  background: linear-gradient(90deg, var(--bg-surface) 25%, var(--bg-elevated) 50%, var(--bg-surface) 75%);
+  background-size: 200% 100%;
+  animation: forge-shimmer 1.5s infinite;
+}
+
+/* ── Component Cards Stagger ─────────────────────────────────────────── */
+
+.component-card {
+  animation: cardReveal 250ms var(--ease-out) both;
+}
+.component-card:nth-child(1) { animation-delay: 0ms; }
+.component-card:nth-child(2) { animation-delay: 40ms; }
+.component-card:nth-child(3) { animation-delay: 80ms; }
+.component-card:nth-child(4) { animation-delay: 120ms; }
+.component-card:nth-child(5) { animation-delay: 160ms; }
+.component-card:nth-child(6) { animation-delay: 200ms; }
+.component-card:nth-child(7) { animation-delay: 240ms; }
+.component-card:nth-child(8) { animation-delay: 280ms; }
+.component-card:nth-child(n+9) { animation-delay: 320ms; }
+
+/* ── Forge Button Variants ───────────────────────────────────────────── */
+
+.btn-forge-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--forge-primary);
+  color: var(--text-inverse);
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s var(--ease-out), transform 0.1s var(--ease-out), box-shadow 0.15s var(--ease-out);
+  user-select: none;
+  white-space: nowrap;
+}
+.btn-forge-primary:hover:not(:disabled) {
+  background: var(--forge-glow);
+  transform: scale(1.02);
+  box-shadow: var(--shadow-forge);
+}
+.btn-forge-primary:active:not(:disabled) {
+  background: var(--forge-ember);
+  transform: scale(0.98);
+}
+.btn-forge-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 500;
+  font-size: 0.875rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--bg-overlay);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.btn-ghost:active:not(:disabled) { background: var(--bg-highlight); }
+.btn-ghost:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: transparent;
+  color: var(--error);
+  font-weight: 500;
+  font-size: 0.875rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(239,68,68,0.3);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--error-subtle);
+  border-color: var(--error);
+}
+
+/* ── Forge Inputs ────────────────────────────────────────────────────── */
+
+.forge-input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-base);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.forge-input:focus {
+  border-color: var(--forge-primary);
+  box-shadow: 0 0 0 3px rgba(247,127,0,0.15);
+}
+.forge-input::placeholder { color: var(--text-tertiary); }
+.forge-input.error { border-color: var(--error); }
+.forge-input.error:focus { box-shadow: 0 0 0 3px rgba(239,68,68,0.15); }
+
+.forge-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Forge Cards ─────────────────────────────────────────────────────── */
+
+.forge-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.forge-card:hover {
+  border-color: var(--border-default);
+  box-shadow: var(--shadow-md);
+}
+.forge-card.interactive:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* ── Amber Accent Left-Border ─────────────────────────────────────────── */
+.forge-card.interactive:hover::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--forge-primary);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+}
+
+/* ── Status Pills ────────────────────────────────────────────────────── */
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.status-pill.synced  { background: var(--success-subtle); color: var(--success); border: 1px solid rgba(34,197,94,0.2); }
+.status-pill.draft   { background: var(--warning-subtle); color: var(--warning); border: 1px solid rgba(234,179,8,0.2); }
+.status-pill.error   { background: var(--error-subtle); color: var(--error); border: 1px solid rgba(239,68,68,0.2); }
+.status-pill.deploying { background: var(--info-subtle); color: var(--info); border: 1px solid rgba(59,130,246,0.2); }
+.status-pill.org-only  { background: rgba(90,101,117,0.15); color: var(--text-secondary); border: 1px solid rgba(90,101,117,0.2); }
+
+/* ── Skeleton Shimmer ─────────────────────────────────────────────────── */
+
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-surface) 25%, var(--bg-elevated) 50%, var(--bg-surface) 75%);
+  background-size: 200% 100%;
+  animation: forge-shimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+/* ── Toast ───────────────────────────────────────────────────────────── */
+
+.toast-enter { animation: toast-enter 250ms var(--ease-spring) both; }
+.toast-exit  { animation: toast-exit 150ms var(--ease-sharp) forwards; }
+
+/* ── Modal Overlay ───────────────────────────────────────────────────── */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10,11,13,0.85);
+  backdrop-filter: blur(4px);
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: forge-slide-in-up 0.15s var(--ease-out) both;
+}
+
+.modal-content {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: forge-scale-in 0.2s var(--ease-spring) both;
+}
+
+/* ── Forge Navbar ────────────────────────────────────────────────────── */
+
+.forge-navbar {
+  height: 56px;
+  background: var(--bg-base);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.forge-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+
+
+.forge-logo-text {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+}
+
+/* ── Breadcrumb ──────────────────────────────────────────────────────── */
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8125rem;
+}
+.breadcrumb-item { color: var(--text-secondary); text-decoration: none; transition: color 0.15s; }
+.breadcrumb-item:hover { color: var(--text-primary); }
+.breadcrumb-sep { color: var(--text-tertiary); }
+.breadcrumb-current { color: var(--text-primary); font-weight: 500; }
+
+/* ── Deploy Button States ────────────────────────────────────────────── */
+
+.deploy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 16px;
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s var(--ease-out);
+  white-space: nowrap;
+}
+.deploy-btn.idle {
+  background: var(--forge-primary);
+  color: var(--text-inverse);
+}
+.deploy-btn.idle:hover:not(:disabled) {
+  background: var(--forge-glow);
+  box-shadow: var(--shadow-forge);
+  transform: scale(1.02);
+}
+.deploy-btn.deploying {
+  background: rgba(247,127,0,0.5);
+  color: var(--text-inverse);
+  cursor: not-allowed;
+}
+.deploy-btn.success {
+  background: var(--success-subtle);
+  color: var(--success);
+  border: 1px solid rgba(34,197,94,0.2);
+}
+.deploy-btn.error {
+  background: var(--error-subtle);
+  color: var(--error);
+  border: 1px solid rgba(239,68,68,0.2);
+}
+
+/* ── Editor Status Bar ───────────────────────────────────────────────── */
+
+.editor-status-bar {
+  height: 22px;
+  background: #0C0E11;
+  border-top: 1px solid rgba(30,37,48,0.9);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.625rem;
+  color: var(--text-tertiary);
+  gap: 14px;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.025);
+}
+
+/* ── File Tabs ───────────────────────────────────────────────────────── */
+
+.file-tabs {
+  height: 36px;
+  background: var(--bg-base);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: stretch;
+  padding: 0 12px;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.file-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  position: relative;
+  white-space: nowrap;
+}
+.file-tab:hover { color: var(--text-primary); }
+.file-tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--forge-primary);
+}
+.file-tab-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--forge-primary);
+  flex-shrink: 0;
+}
+
+/* ── Editor Top Bar (Navbar Layer) ───────────────────────────────────── */
+
+.editor-topbar {
+  background: #111418;
+  border-bottom: 1px solid rgba(30,37,48,0.8);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.03), 0 2px 8px rgba(0,0,0,0.4);
+}
+
+/* ── Tab Bar Layer ───────────────────────────────────────────────────── */
+
+.editor-tabbar {
+  background: #181C22;
+  border-bottom: 1px solid rgba(30,37,48,0.7);
+}
+
+/* ── Editor Surface Depth ────────────────────────────────────────────── */
+
+.editor-surface {
+  box-shadow: inset 0 4px 20px rgba(0,0,0,0.25), inset 0 0 0 0.5px rgba(255,255,255,0.02);
+}
+
+/* ── Action Group Divider ────────────────────────────────────────────── */
+
+.editor-action-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.editor-action-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-subtle);
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+
+/* ── Secondary Action Button (Save, Preview) ─────────────────────────── */
+
+.editor-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s var(--ease-out), background 0.15s var(--ease-out), border-color 0.15s var(--ease-out), transform 0.1s var(--ease-out);
+  white-space: nowrap;
+  user-select: none;
+}
+.editor-btn-secondary:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.05);
+  border-color: var(--border-default);
+  transform: translateY(-0.5px);
+}
+.editor-btn-secondary:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+  background: rgba(255,255,255,0.03);
+}
+.editor-btn-secondary:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ── Icon-only tool button ───────────────────────────────────────────── */
+
+.editor-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  color: var(--text-tertiary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s var(--ease-out), background 0.15s var(--ease-out), transform 0.1s var(--ease-out);
+}
+.editor-btn-icon:hover {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.07);
+  transform: scale(1.05);
+}
+.editor-btn-icon:active {
+  transform: scale(0.95);
+}
+
+/* ── Preview Button ──────────────────────────────────────────────────── */
+
+.editor-btn-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--success);
+  background: rgba(34,197,94,0.08);
+  border: 1px solid rgba(34,197,94,0.2);
+  cursor: pointer;
+  transition: background 0.15s var(--ease-out), border-color 0.15s var(--ease-out), transform 0.1s var(--ease-out), box-shadow 0.15s var(--ease-out);
+  white-space: nowrap;
+}
+.editor-btn-preview:hover:not(:disabled) {
+  background: rgba(34,197,94,0.14);
+  border-color: rgba(34,197,94,0.4);
+  box-shadow: 0 0 10px rgba(34,197,94,0.12);
+  transform: translateY(-0.5px);
+}
+.editor-btn-preview:active:not(:disabled) { transform: scale(0.98); }
+.editor-btn-preview:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ── Enhanced Deploy Button ──────────────────────────────────────────── */
+
+.deploy-btn.idle {
+  background: linear-gradient(135deg, var(--forge-primary) 0%, var(--forge-glow) 100%);
+  color: var(--text-inverse);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 0 0 1px rgba(247,127,0,0.15);
+}
+.deploy-btn.idle:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--forge-glow) 0%, #FFB04A 100%);
+  box-shadow: 0 0 16px rgba(247,127,0,0.35), 0 2px 6px rgba(0,0,0,0.3);
+  transform: translateY(-1px) scale(1.02);
+}
+
+/* ── Apex Panel ──────────────────────────────────────────────────────── */
+
+.apex-panel {
+  background: var(--bg-base);
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: height 0.25s var(--ease-in-out);
+}
+
+.apex-panel-header {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* ── Panel Resizer ───────────────────────────────────────────────────── */
+
+.panel-resizer {
+  width: 4px;
+  background: var(--border-subtle);
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  position: relative;
+}
+.panel-resizer:hover { background: var(--border-strong); }
+.panel-resizer.dragging { background: var(--forge-primary); }
+
+/* ── Org Status Badge ────────────────────────────────────────────────── */
+
+.org-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.org-dot.connected { background: var(--success); box-shadow: 0 0 6px var(--success); }
+.org-dot.disconnected { background: var(--text-tertiary); }
+.org-dot.connecting {
+  background: var(--forge-primary);
+  animation: amber-glow-pulse 1.5s ease-in-out infinite;
+}
+
+/* ── Inline Banner ───────────────────────────────────────────────────── */
+
+.inline-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+.inline-banner.warning {
+  background: var(--warning-subtle);
+  border-left: 3px solid var(--warning);
+  color: var(--warning);
+}
+.inline-banner.error {
+  background: var(--error-subtle);
+  border-left: 3px solid var(--error);
+  color: var(--error);
+}
+.inline-banner.info {
+  background: var(--info-subtle);
+  border-left: 3px solid var(--info);
+  color: var(--info);
+}
+.inline-banner.success {
+  background: var(--success-subtle);
+  border-left: 3px solid var(--success);
+  color: var(--success);
+}
+
+/* ── Landing Hero Gradient Text ──────────────────────────────────────── */
+
+.text-forge-gradient {
+  background: linear-gradient(135deg, var(--forge-glow), var(--forge-primary), var(--forge-ember));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Glass Effect ────────────────────────────────────────────────────── */
+
+.forge-glass {
+  background: rgba(22,26,31,0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* ── Code Font For Editor Contexts ───────────────────────────────────── */
+
+pre, code, .code-font {
+  font-family: 'DM Mono', 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.8125rem;
+}
+
+/* ── Transition Groups ───────────────────────────────────────────────── */
+
+.transition-colors  { transition: color 0.15s var(--ease-out), background 0.15s var(--ease-out), border-color 0.15s var(--ease-out); }
+.transition-all-sm  { transition: all 0.15s var(--ease-out); }
+.transition-all-md  { transition: all 0.2s var(--ease-out); }
+.transition-all-lg  { transition: all 0.35s var(--ease-out); }
+
+/* ── Pulsing ring for onboarding CTA ────────────────────────────────── */
+.onboarding-pulse {
+  animation: amber-glow-pulse 1.5s ease-in-out infinite;
 }

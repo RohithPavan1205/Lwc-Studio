@@ -9,16 +9,13 @@ export async function GET() {
   const diagnostics: Record<string, unknown> = {};
 
   try {
-    // 1. Check if Supabase client is available
     const supabase = createClient();
     diagnostics.supabaseClientCreated = !!supabase;
-
     if (!supabase) {
-      diagnostics.error = 'Supabase client could not be created (missing env vars?)';
+      diagnostics.error = 'Supabase client could not be created';
       return NextResponse.json(diagnostics);
     }
 
-    // 2. Check if user has a valid session
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     diagnostics.userAuthenticated = !!user;
     diagnostics.userId = user?.id ?? null;
@@ -26,57 +23,98 @@ export async function GET() {
     diagnostics.authError = authError?.message ?? null;
 
     if (!user) {
-      diagnostics.conclusion = 'NO_SESSION: User is not authenticated. The session cookie is missing or invalid.';
+      diagnostics.conclusion = 'NO_SESSION';
       return NextResponse.json(diagnostics);
     }
 
-    // 3. Try to read salesforce_connections with the ANON client (RLS applies)
-    const { data: anonData, error: anonError } = await supabase
+    const adminClient = createAdminClient();
+    if (!adminClient) {
+      diagnostics.conclusion = 'NO_ADMIN_CLIENT';
+      return NextResponse.json(diagnostics);
+    }
+
+    // 1. Check what columns the table has by querying with select('*')
+    const { data: allRows, error: schemaError } = await adminClient
       .from('salesforce_connections')
-      .select('id, user_id, instance_url, created_at')
+      .select('*')
+      .limit(1);
+
+    diagnostics.tableQueryError = schemaError?.message ?? null;
+    diagnostics.tableColumns = allRows && allRows.length > 0 ? Object.keys(allRows[0]) : 'TABLE_EMPTY_OR_NO_ROWS';
+
+    // 2. Check if a row exists for this user
+    const { data: existingRow, error: selectError } = await adminClient
+      .from('salesforce_connections')
+      .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
 
-    diagnostics.anonQuery = {
-      data: anonData ? { id: anonData.id, instance_url: anonData.instance_url, created_at: anonData.created_at } : null,
-      error: anonError?.message ?? null,
-      errorCode: anonError?.code ?? null,
+    diagnostics.existingRow = existingRow ? 'EXISTS' : 'DOES_NOT_EXIST';
+    diagnostics.selectError = selectError?.message ?? null;
+
+    // 3. Try a test upsert with the exact same shape the callback uses
+    const testData = {
+      user_id: user.id,
+      org_id: 'test_org_debug',
+      sf_user_id: 'test_sf_user_debug',
+      instance_url: 'https://test.salesforce.com',
+      access_token: 'test_encrypted_token',
+      refresh_token: 'test_encrypted_refresh',
+      token_expiry: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+      preview_page_url: '/lightning/n/LWC_Studio_Preview',
+      updated_at: new Date().toISOString(),
     };
 
-    // 4. Try to read with the ADMIN client (bypasses RLS)
-    const adminClient = createAdminClient();
-    diagnostics.adminClientCreated = !!adminClient;
+    const { data: upsertResult, error: upsertError } = await adminClient
+      .from('salesforce_connections')
+      .upsert(testData, { onConflict: 'user_id' })
+      .select();
 
-    if (adminClient) {
-      const { data: adminData, error: adminError } = await adminClient
+    diagnostics.testUpsert = {
+      success: !upsertError,
+      error: upsertError?.message ?? null,
+      errorDetails: upsertError?.details ?? null,
+      errorHint: upsertError?.hint ?? null,
+      errorCode: upsertError?.code ?? null,
+      resultCount: upsertResult?.length ?? 0,
+    };
+
+    // 4. If the upsert succeeded, clean it up
+    if (!upsertError) {
+      await adminClient
         .from('salesforce_connections')
-        .select('id, user_id, instance_url, created_at')
+        .delete()
         .eq('user_id', user.id)
-        .maybeSingle();
-
-      diagnostics.adminQuery = {
-        data: adminData ? { id: adminData.id, instance_url: adminData.instance_url, created_at: adminData.created_at } : null,
-        error: adminError?.message ?? null,
-      };
-
-      // 5. Determine the root cause
-      if (adminData && !anonData) {
-        diagnostics.conclusion = 'RLS_BLOCKING: The row EXISTS in the database, but RLS policies are blocking the anon/authenticated client from reading it. You need to add a SELECT policy on salesforce_connections.';
-      } else if (!adminData && !anonData) {
-        diagnostics.conclusion = 'NO_ROW: No salesforce_connections row exists for this user. The OAuth callback upsert is failing silently.';
-      } else if (adminData && anonData) {
-        diagnostics.conclusion = 'ALL_OK: Both clients can read the connection. The issue might be a session/cookie problem on the dashboard page.';
-      }
+        .eq('org_id', 'test_org_debug');
+      diagnostics.testCleanedUp = true;
     }
 
-    // 6. Check environment sanity
-    diagnostics.envCheck = {
-      hasCallbackUrl: !!process.env.SALESFORCE_CALLBACK_URL,
-      callbackUrl: process.env.SALESFORCE_CALLBACK_URL ?? 'NOT SET',
-      hasClientId: !!process.env.SALESFORCE_CLIENT_ID,
-      hasClientSecret: !!process.env.SALESFORCE_CLIENT_SECRET,
-      hasEncryptionKey: !!process.env.TOKEN_ENCRYPTION_KEY,
+    // 5. Check the profiles table for this user
+    const { data: profileRow, error: profileError } = await adminClient
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    diagnostics.profile = {
+      exists: !!profileRow,
+      error: profileError?.message ?? null,
+      email: profileRow?.email ?? null,
     };
+
+    // 6. Check Vercel logs would show — what does the callback URL see
+    diagnostics.envCheck = {
+      callbackUrl: process.env.SALESFORCE_CALLBACK_URL ?? 'NOT SET',
+      hasEncryptionKey: !!process.env.TOKEN_ENCRYPTION_KEY,
+      encryptionKeyLength: process.env.TOKEN_ENCRYPTION_KEY?.length ?? 0,
+    };
+
+    // Conclusion
+    if (upsertError) {
+      diagnostics.conclusion = `UPSERT_FAILS: ${upsertError.message}. The table schema doesn't match the code.`;
+    } else {
+      diagnostics.conclusion = 'TABLE_SCHEMA_OK: The test upsert worked. The issue is in the OAuth callback flow itself. Check Vercel Function Logs for [SF CALLBACK] errors.';
+    }
 
   } catch (e) {
     diagnostics.fatalError = e instanceof Error ? e.message : String(e);

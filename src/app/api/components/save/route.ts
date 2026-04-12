@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     // The .eq('user_id', user.id) prevents any user from overwriting
     // another user's component even if they guess the UUID.
     // select() + count:'exact' is required for Supabase to populate the count field.
-    const { error: updateError, count } = await supabase
+    const { error: updateError, data } = await supabase
       .from('components')
       .update({
         html_content: htmlContent,
@@ -40,15 +40,15 @@ export async function POST(request: Request) {
       })
       .eq('id', id)
       .eq('user_id', user.id) // ownership check
-      .select('id', { count: 'exact' });
+      .select('id');
 
     if (updateError) {
       console.error('[save] Component update error:', updateError);
       return NextResponse.json({ error: 'Failed to update component' }, { status: 500 });
     }
 
-    // If count is 0, either the component doesn't exist or doesn't belong to this user
-    if (count === 0) {
+    // If no row was returned, the component doesn't exist or access is denied
+    if (!data || data.length === 0) {
       return NextResponse.json({ error: 'Component not found or access denied' }, { status: 403 });
     }
 

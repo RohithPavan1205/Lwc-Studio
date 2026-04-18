@@ -5,7 +5,7 @@ import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import LwcEditor from '@/components/Editor';
 import LivePreview from '@/components/editor/LivePreview';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import Link from 'next/link';
 import {
   Save,
@@ -755,7 +755,7 @@ export default function EditorShell({
 
       {/* ── Editor Body ───────────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
-        <PanelGroup direction="horizontal">
+        <PanelGroup orientation="horizontal">
           <Panel defaultSize={showPreview ? 60 : 100} minSize={30} className="flex flex-col flex-1 overflow-hidden min-w-0">
             {isComponentLoaded ? (
               <div className="editor-surface flex flex-col flex-1 overflow-hidden">

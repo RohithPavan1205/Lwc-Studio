@@ -589,8 +589,8 @@ export default function EditorShell({
     : 'Deployed ✓';
 
   const isSetupInProgress = setupBanner === 'in-progress';
-  const previewAvailable =
-    (deployStatus === 'success' || !!lastDeployedAt) && !isSetupInProgress;
+  // const previewAvailable =
+  //   (deployStatus === 'success' || !!lastDeployedAt) && !isSetupInProgress;
 
 
 

@@ -3,6 +3,7 @@ import { ExternalLink, AlertTriangle, Loader2 } from 'lucide-react';
 import { transformLWCToPreview, LWCFiles } from '@/lib/lwcPreviewTransformer';
 
 // Generic debounce isolated logic
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function debounce<T extends (...args: any[]) => void>(func: T, wait: number): T {
   let timeout: NodeJS.Timeout;
   return ((...args: Parameters<T>) => {

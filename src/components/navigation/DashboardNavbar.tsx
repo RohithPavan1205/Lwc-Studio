@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
-import { Settings, LogOut, Link as LinkIcon, Unlink, Menu, X } from 'lucide-react';
+import { Settings, LogOut, Link as LinkIcon, Unlink, Menu } from 'lucide-react';
 
 interface DashboardNavbarProps {
   user?: { name: string; email: string; avatarUrl?: string };

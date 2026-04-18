@@ -4,24 +4,21 @@ import { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
 import Link from 'next/link';
-import { formatDistanceToNow } from 'date-fns';
 import {
   Zap,
   Plus,
   Search,
   Trash2,
   Loader2,
-  MoreHorizontal,
   AlertCircle,
-  Clock,
   X,
   CheckCircle,
   AlertTriangle,
-  Code2,
-  Download,
-  LayoutTemplate,
+  Github,
+  Moon,
+  Sun,
   LayoutGrid,
-  List,
+  List as ListIcon
 } from 'lucide-react';
 import DashboardNavbar from '@/components/navigation/DashboardNavbar';
 import CreateComponentModal from '@/components/CreateComponentModal';
@@ -55,6 +52,7 @@ type ViewMode = 'grid' | 'list';
 
 // ─── Deploy Status Pill ───────────────────────────────────────────────────────
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function DeployStatusPill({ status }: { status: DeployStatus }) {
   const configs: Record<DeployStatus, { label: string; cls: string }> = {
     synced: {
@@ -134,8 +132,9 @@ const PREVIEW_PATTERNS = [
   ],
 ];
 
-function ComponentPreviewStrip({ index }: { index: number }) {
-  const pattern = PREVIEW_PATTERNS[index % PREVIEW_PATTERNS.length];
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function ComponentPreviewStrip({ metadata }: { metadata: any }) {
+  const pattern = PREVIEW_PATTERNS[0 % PREVIEW_PATTERNS.length];
   return (
     <div
       className="rounded-lg mb-4 px-3 py-3 flex flex-col gap-1.5"
@@ -406,6 +405,7 @@ function DashboardContent() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Component | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isRefreshing, setIsRefreshing] = useState(false);
   const cols = useResponsiveColumns();
 

@@ -513,7 +513,7 @@ export default function EditorShell({
               if (ed.error === 'REAUTH_REQUIRED') {
                 setReauthRequired(true);
                 setDeployStatus('idle');
-                return;
+                return false;
               }
               finalError = 'Status check failed';
               isDone = true;

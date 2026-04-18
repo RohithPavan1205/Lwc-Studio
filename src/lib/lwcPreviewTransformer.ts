@@ -41,10 +41,13 @@ export function transformLWCToPreview(files: LWCFiles): PreviewResult {
     * { box-sizing: border-box; }
     body { 
       margin: 0; 
-      padding: 16px;
+      padding: 32px;
       font-family: 'Salesforce Sans', Arial, sans-serif;
       background: #f3f3f3;
       min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
     .lwc-preview-placeholder {
       background: #f4f6f9;

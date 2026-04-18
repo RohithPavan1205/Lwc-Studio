@@ -321,7 +321,7 @@ export default function EditorShell({
     dismissSetupBanner,
   } = useEditorStore();
 
-  const [showPreview, setShowPreview] = useState(false);
+  const [showPreview, setShowPreview] = useState(true);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [reauthRequired, setReauthRequired] = useState(false);
   const [deployErrors, setDeployErrors] = useState<EditorError[]>([]);

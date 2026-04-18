@@ -140,6 +140,7 @@ function LazyIframe({ srcDoc, title, scale = 0.85 }: { srcDoc: string; title: st
 }
 
 function TemplateCard({ template }: { template: Template }) {
+  const router = useRouter();
   const contentLength = (template.html_content || '').length;
   const isTall = contentLength > 500;
   const previewHeight = isTall ? 400 : 220;
@@ -222,9 +223,9 @@ function Navbar({ hasSession, isLoading, onConnect }: { hasSession: boolean | nu
 
   return (
     <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 200, display: "flex", justifyContent: "center", padding: "16px 20px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 20px", background: "rgba(15,20,35,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderRadius: 999, boxShadow: "0 8px 32px rgba(0,0,0,0.5)", width: "100%", maxWidth: 860, position: "relative" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 20px", background: "rgba(15,20,35,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderRadius: 999, boxShadow: "0 8px 32px rgba(0,0,0,0.5)", width: "100%", maxWidth: 860, position: "relative" }}>
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", flexShrink: 0 }}>
-          <img src="/logo-studio.png" alt="LWC Studio" style={{ height: 40, width: "auto", objectFit: "contain" }} />
+          <img src="/logo-studio.png" alt="LWC Studio" style={{ height: 40, width: "auto", objectFit: "contain", transform: "scale(2.2)", transformOrigin: "left center" }} />
         </Link>
         <nav className="hidden md:flex" style={{ alignItems: "center", gap: 28 }}>
           {NAV_LINKS.map((item, i) => (

@@ -59,12 +59,9 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // 2. If logged in and trying to access landing page -> Redirect to dashboard
-  if (user && pathname === '/') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
-  }
+  // Ensure we don't automatically bounce users from the landing page when they 
+  // explicitly click the logo to go back there.
+
 
   // 3. To handle error cases like ?error=invalid_state on the landing page
   // we could let them stay, but typically a logged-in user facing an error

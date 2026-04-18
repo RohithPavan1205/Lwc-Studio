@@ -131,7 +131,7 @@ export async function POST(request: Request) {
             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
             <style>
                 body { margin: 0; padding: 0; background-color: #ffffff; height: 100vh; overflow: auto; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-                #lightning { width: 100%; height: 100%; padding: 16px; box-sizing: border-box; }
+                #lightning { width: 100%; min-height: 100vh; padding: 32px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
             </style>
         </head>
         <body>
@@ -172,7 +172,9 @@ export async function POST(request: Request) {
     if (!folder) throw new Error('Zip folder creation failed');
 
     if (htmlContent) folder.file(`${componentName}.html`, htmlContent);
-    if (cssContent) folder.file(`${componentName}.css`, cssContent);
+    let finalCssContent = cssContent || '';
+    finalCssContent += `\n\n/* LWC Studio Auto-Padding */\n:host {\n  display: flex !important;\n  justify-content: center !important;\n  align-items: center !important;\n  padding: 32px !important;\n  box-sizing: border-box !important;\n  width: 100% !important;\n}`;
+    folder.file(`${componentName}.css`, finalCssContent);
     folder.file(`${componentName}.js`, jsContent);
     // Generate dynamic meta XML based on stored component settings
     let metaXmlContent = component.meta_xml;

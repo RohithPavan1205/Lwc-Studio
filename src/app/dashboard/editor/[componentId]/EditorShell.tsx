@@ -5,7 +5,7 @@ import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import LwcEditor from '@/components/Editor';
 import LivePreview from '@/components/editor/LivePreview';
-import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import Link from 'next/link';
 import {
   Save,

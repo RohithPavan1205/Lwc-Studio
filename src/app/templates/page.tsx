@@ -547,7 +547,7 @@ function TemplatesContent() {
         {error && (
           <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 12, padding: "16px 20px", color: "#fca5a5", marginBottom: 24, display: "flex", alignItems: "center", gap: 12 }}>
             <X size={16} /> {error}
-            <button onClick={() => fetchTemplates(true)} style={{ marginLeft: "auto", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, color: "#fca5a5", padding: "4px 12px", cursor: "pointer", fontSize: 12 }}>Retry</button>
+            <button onClick={() => fetchTemplates(page)} style={{ marginLeft: "auto", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, color: "#fca5a5", padding: "4px 12px", cursor: "pointer", fontSize: 12 }}>Retry</button>
           </div>
         )}
 

@@ -14,11 +14,10 @@ import {
   X,
   CheckCircle,
   AlertTriangle,
-  Github,
-  Moon,
-  Sun,
   LayoutGrid,
-  List as ListIcon
+  Download,
+  LayoutTemplate,
+  List
 } from 'lucide-react';
 import DashboardNavbar from '@/components/navigation/DashboardNavbar';
 import CreateComponentModal from '@/components/CreateComponentModal';
@@ -132,7 +131,7 @@ const PREVIEW_PATTERNS = [
   ],
 ];
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any
 function ComponentPreviewStrip({ metadata }: { metadata: any }) {
   const pattern = PREVIEW_PATTERNS[0 % PREVIEW_PATTERNS.length];
   return (

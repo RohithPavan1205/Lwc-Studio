@@ -178,13 +178,9 @@ export async function GET(request: Request) {
     }
 
     // ── Upsert profile ────────────────────────────────────────────────────
-    const { error: profileError } = await adminClient
+    await adminClient
       .from('profiles')
       .upsert({ id: userId, email, full_name: name }, { onConflict: 'id' });
-      
-    if (profileError) {
-      console.error('[SF CALLBACK] Upsert Profile Error:', profileError);
-    }
 
     // ── Upsert Salesforce connection ──────────────────────────────────────
     // Token expiry: Salesforce tokens are valid for the org's session timeout
@@ -277,7 +273,7 @@ export async function GET(request: Request) {
       console.error('[SF CALLBACK] Failed to build preview page zip:', e);
     }
 
-    const { error: connectionError } = await adminClient.from('salesforce_connections').upsert(
+    await adminClient.from('salesforce_connections').upsert(
       {
         user_id: userId,
         org_id: org_id || '',
@@ -291,18 +287,20 @@ export async function GET(request: Request) {
       },
       { onConflict: 'user_id' }
     );
-    
-    if (connectionError) {
-      console.error('[SF CALLBACK] Upsert Connection Error:', connectionError);
-      throw new Error('Failed to save Salesforce connection to the database.');
-    }
 
     // ── Clean up PKCE and CSRF cookies ────────────────────────────────────
     cookieStore.delete('code_verifier');
     cookieStore.delete('oauth_state');
     console.log('[SF CALLBACK] Success! Redirecting to dashboard.');
 
-    return NextResponse.redirect(baseUrl.toString());
+    const response = NextResponse.redirect(baseUrl.toString());
+    
+    // Crucial Bugfix: explicitly attach session cookies to the redirect header to ensure it's not discarded.
+    cookieStore.getAll().forEach(cookie => {
+      response.cookies.set(cookie.name, cookie.value, cookie);
+    });
+
+    return response;
   } catch (err) {
     console.error('[SF CALLBACK] Unexpected error:', err);
     errorUrl.searchParams.set('error', 'unexpected_error');

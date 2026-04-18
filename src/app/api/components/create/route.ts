@@ -122,7 +122,7 @@ export async function POST(request: Request) {
       css_content: finalCss,
       created_at: now,
       updated_at: now,
-      // New LWCForge metadata columns
+      // New LWC Studio metadata columns
       master_label: finalMasterLabel,
       is_exposed: isExposed,
       targets: targets, // stored as jsonb array

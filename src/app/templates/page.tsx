@@ -1,343 +1,552 @@
-/* eslint-disable @next/next/no-img-element */
-'use client';
+"use client"
 
-import { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import * as React from "react"
+import { useState, useRef, useEffect, useCallback, Suspense } from "react"
+import { motion, AnimatePresence } from "motion/react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
 import {
-  CheckCircle2,
-  ArrowUpRight,
-  User
-} from 'lucide-react';
+  Menu, X, ChevronDown, Loader2, Cloud, Search, Code2, Layers, Zap
+} from "lucide-react"
 
-const CATEGORIES = ['All', 'Data', 'Forms', 'UI', 'Notifications', 'Featured'];
+/* ═══════════════════════════════════════════════
+   TYPES & CONSTANTS
+═══════════════════════════════════════════════ */
+interface Star { x: number; y: number; size: number; opacity: number; dur: number; delay: number }
 
-interface Template {
-  slug: string;
+const STARS: Star[] = Array.from({ length: 200 }, () => ({
+  x: Math.random() * 100, y: Math.random() * 100,
+  size: Math.random() * 2 + 0.4,
+  opacity: Math.random() * 0.55 + 0.1,
+  dur: Math.random() * 4 + 2,
+  delay: -(Math.random() * 6),
+}))
+
+const NAV_LINKS = [
+  { label: "Templates", href: "/templates" },
+  { label: "Studio",    href: "/dashboard" },
+  { label: "Docs",      href: "/docs" },
+]
+
+export interface Template {
+  id: string;
   name: string;
-  description: string;
+  component_name: string;
+  category: string;
   tags: string[];
-  preview: React.ReactNode;
-  isFeatured?: boolean;
-  hasArrowBtn?: boolean;
+  complexity: 'beginner' | 'intermediate' | 'advanced';
+  has_animation: boolean;
+  has_interaction: boolean;
+  has_javascript: boolean;
+  description: string | null;
+  original_author: string | null;
+  html_content: string | null;
+  is_featured: boolean;
+  view_count: number;
+  use_count: number;
+  created_at: string;
 }
 
-const TEMPLATES: Template[] = [
-  {
-    slug: 'modern-data-table',
-    name: 'Modern Data Table',
-    description: 'A responsive data table with sorting, filtering, and pagination powered by @wire.',
-    tags: ['@wire', 'lightning-datatable', 'sorting'],
-    isFeatured: true,
-    hasArrowBtn: true,
-    preview: (
-      <div className="w-[85%] h-auto bg-[#1a1a1a] rounded-lg border border-white/10 p-3 shadow-2xl flex flex-col mx-auto mt-4 opacity-95">
-        <div className="flex justify-between items-center mb-3">
-          <div className="text-[10px] font-bold text-white/90">Data Table</div>
-        </div>
-        <div className="grid grid-cols-4 gap-2 mb-2 pb-1.5 border-b border-white/10 text-[8px] text-white/50 font-semibold tracking-wide">
-          <div>Name</div><div>Status</div><div>Amount</div><div>Date</div>
-        </div>
-        {[1, 2, 3, 4, 5].map(i => (
-          <div key={i} className="grid grid-cols-4 gap-2 py-1.5 items-center">
-            <div className="h-1.5 w-full bg-white/20 rounded"></div>
-            <div className="h-1.5 w-3/4 bg-white/20 rounded"></div>
-            <div className="h-1.5 w-1/2 bg-white/20 rounded"></div>
-            <div className="h-1.5 w-3/4 bg-white/20 rounded"></div>
-          </div>
-        ))}
-      </div>
-    ),
-  },
-  {
-    slug: 'profile-card',
-    name: 'Profile Card',
-    description: 'A sleek account/contact profile card with avatar, fields, and action buttons.',
-    tags: ['lightning-card', '@api', 'recordId'],
-    hasArrowBtn: false,
-    preview: (
-      <div className="w-[65%] bg-[#1a1a1a] rounded-xl border border-white/10 p-4 shadow-2xl flex flex-col items-center opacity-95 mx-auto mt-2">
-        <div className="w-10 h-10 rounded-full bg-[#1c1c1c] mb-2 overflow-hidden flex items-center justify-center border border-[#333] shadow-inner">
-          <User className="text-white/60" size={20} />
-        </div>
-        <div className="text-[9px] font-bold text-white mb-0.5">Contact Card</div>
-        <div className="text-[6px] text-white/40 mb-3">Personal Details</div>
-        
-        <div className="w-full grid grid-cols-2 gap-x-2 gap-y-2 mb-3 text-[6px] text-white/40">
-           <div className="flex flex-col gap-0.5">
-             <span>Phone</span>
-             <div className="h-1 w-full bg-white/20 rounded"></div>
-           </div>
-           <div className="flex flex-col gap-0.5">
-             <span>Email</span>
-             <div className="h-1 w-full bg-white/20 rounded"></div>
-           </div>
-           <div className="flex flex-col gap-0.5">
-             <span>Department</span>
-             <div className="h-1 w-3/4 bg-white/20 rounded"></div>
-           </div>
-           <div className="flex flex-col gap-0.5">
-             <span>Role</span>
-             <div className="h-1 w-4/5 bg-white/20 rounded"></div>
-           </div>
-        </div>
-        <div className="flex gap-1.5 w-full justify-center mt-auto border-t border-white/10 pt-2.5">
-          <div className="h-5 flex-1 bg-[#222] rounded flex items-center justify-center text-[7px] text-white/70 border border-white/5">Call</div>
-          <div className="h-5 flex-1 bg-[#222] rounded flex items-center justify-center text-[7px] text-white/70 border border-white/5">Message</div>
-          <div className="h-5 w-6 bg-[#f77f00]/80 rounded flex items-center justify-center"></div>
-        </div>
-      </div>
-    ),
-  },
-  {
-    slug: 'smart-record-form',
-    name: 'Smart Record Form',
-    description: 'A dynamic record edit form with lightning-record-edit-form and validation.',
-    tags: ['lightning-record-edit-form', 'validation'],
-    hasArrowBtn: false,
-    preview: (
-      <div className="w-[85%] bg-[#1a1a1a] rounded-lg border border-white/10 p-3.5 shadow-2xl flex flex-col opacity-95 mx-auto mt-2">
-        <div className="flex items-center gap-1.5 mb-3">
-          <div className="w-1.5 h-1.5 rounded bg-[#f77f00]"></div>
-          <div className="text-[9px] font-bold text-white/90">Smart Record Form</div>
-        </div>
-        <div className="space-y-2.5 flex-1">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="space-y-1">
-              <div className="h-1.5 w-12 bg-white/20 rounded"></div>
-              <div className="h-4 w-full bg-[#111] border border-white/5 rounded"></div>
-            </div>
-          ))}
-        </div>
-        <div className="flex justify-end mt-3">
-           <div className="h-5 w-12 rounded bg-[#f77f00]/80"></div>
-        </div>
-      </div>
-    ),
-  },
-  {
-    slug: 'chart-dashboard',
-    name: 'Chart Dashboard',
-    description: 'A responsive chart table with sorting, filtering, and pagination powered.',
-    tags: ['@wire', 'lightning-datatable'],
-    hasArrowBtn: true,
-    preview: (
-      <div className="w-[90%] h-auto bg-[#1a1a1a] rounded-lg border border-white/10 p-3 shadow-2xl flex flex-col opacity-95 mx-auto mt-3">
-        <div className="flex justify-between h-full gap-3">
-          <div className="flex-1 flex flex-col">
-             <div className="text-[9px] font-bold text-white/80 mb-2">Chart Dashboard</div>
-             <div className="flex-1 flex items-end gap-1 pb-1 border-b border-l border-white/10 px-1 pt-3">
-               {[40, 60, 30, 80, 50, 70, 40, 90, 60, 75].map((h, i) => (
-                 <div key={i} className="flex-1 bg-[#f77f00]/70 rounded-t-sm" style={{height: `${h}%`}}></div>
-               ))}
-             </div>
-          </div>
-          <div className="w-[35%] flex flex-col">
-             <div className="text-[9px] font-bold text-white/80 mb-2 text-right">Chart Dashboard</div>
-             <div className="flex-1 flex items-center justify-center mt-2">
-               <div className="w-12 h-12 rounded-full border-[4px] border-[#f77f00] border-r-[#f77f00]/20"></div>
-             </div>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 mt-3 pt-2 border-t border-white/10">
-           <div><div className="h-1.5 w-8 bg-white/20 rounded"></div></div>
-           <div className="flex justify-end"><div className="h-1.5 w-12 bg-white/20 rounded"></div></div>
-        </div>
-      </div>
-    ),
-  },
-  {
-    slug: 'toast-notification',
-    name: 'Toast Notification',
-    description: 'A sleek account/contact profile card with avatar, fields, and action buttons.',
-    tags: ['lightning-card', '@api', 'recordId'],
-    hasArrowBtn: true,
-    preview: (
-      <div className="w-[85%] mx-auto space-y-2 mt-3">
-        <div className="bg-[#1a1a1a] border border-white/10 rounded-md p-2 flex items-center gap-2 shadow-2xl relative overflow-hidden opacity-95">
-          <div className="w-4 h-4 rounded-full bg-red-500/20 flex items-center justify-center shrink-0">
-            <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
-          </div>
-          <div className="flex-1">
-             <div className="text-[8px] text-white font-bold mb-0.5">Toast Notification</div>
-             <div className="text-[6px] text-white/50">This is a sample error message for the user.</div>
-          </div>
-          <div className="text-white/40 text-[7px] pl-1">X</div>
-        </div>
-        <div className="bg-[#1a1a1a] border border-green-500/30 rounded-md p-2 flex items-center gap-2 shadow-2xl relative overflow-hidden opacity-95">
-          <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-green-500"></div>
-          <div className="w-4 h-4 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-          </div>
-          <div className="flex-1">
-             <div className="text-[8px] text-white font-bold mb-0.5">Toast Notification</div>
-             <div className="text-[6px] text-white/50">This is a sample error message for the user.</div>
-          </div>
-          <div className="text-white/40 text-[7px] pl-1">X</div>
-        </div>
-        <div className="bg-[#1a1a1a] border border-[#f77f00]/30 rounded-md p-2 flex items-center gap-2 shadow-2xl relative overflow-hidden opacity-95">
-          <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-[#f77f00]"></div>
-          <div className="w-4 h-4 rounded-full bg-[#f77f00]/20 flex items-center justify-center shrink-0">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#f77f00]"></div>
-          </div>
-          <div className="flex-1">
-             <div className="text-[8px] text-white font-bold mb-0.5">Toast Notification</div>
-             <div className="text-[6px] text-white/50">This is a sample error message for the user.</div>
-          </div>
-          <div className="text-white/40 text-[7px] pl-1">X</div>
-        </div>
-      </div>
-    ),
-  },
-  {
-    slug: 'calendar-view',
-    name: 'Calendar View',
-    description: 'A dynamic record edit form with lightning-record-edit-form and validation.',
-    tags: ['lightning-record-edit-form'],
-    hasArrowBtn: true,
-    preview: (
-      <div className="w-[90%] bg-[#1a1a1a] rounded-lg border border-white/10 p-3 shadow-2xl flex flex-col opacity-95 mx-auto mt-2">
-        <div className="flex justify-between items-center mb-3">
-          <div className="text-[9px] font-bold text-white/90">Calendar View</div>
-          <div className="text-[7px] text-white/50 font-medium">{'< June 2025 >'}</div>
-        </div>
-        <div className="grid grid-cols-7 gap-1 mb-1.5">
-          {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
-            <div key={d} className="text-center text-[6px] text-white/50 font-medium">{d}</div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-1 flex-1">
-          {[...Array(35)].map((_, i) => {
-            const isToday = i === 10;
-            const hasEvent = i === 16 || i === 22 || i === 23 || i === 12;
-            const isOff = i < 2 || i > 31;
-            return (
-              <div key={i} className={`aspect-square rounded-sm flex items-center justify-center text-[6px] ${isToday ? 'bg-[#f77f00] text-black font-bold' : hasEvent ? 'bg-white/10 text-white' : isOff ? 'opacity-0' : 'text-white/40'}`}>
-                {i - 1}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    ),
-  }
+interface TemplatesResponse {
+  templates: Template[];
+  total: number;
+  page: number;
+  totalPages: number;
+}
+
+const CATEGORIES = [
+  { value: 'all', label: 'All Categories' },
+  { value: 'Buttons', label: 'Buttons' },
+  { value: 'Cards', label: 'Cards' },
+  { value: 'Checkboxes', label: 'Checkboxes' },
+  { value: 'Forms', label: 'Forms' },
+  { value: 'Inputs', label: 'Inputs' },
+  { value: 'Loaders', label: 'Loaders' },
+  { value: 'RadioButtons', label: 'Radio Buttons' },
+  { value: 'ToggleSwitches', label: 'Toggle Switches' },
+  { value: 'Tooltips', label: 'Tooltips' },
 ];
 
-export default function TemplatesPage() {
-  const [activeCategory, setActiveCategory] = useState('All');
+const COMPLEXITY_OPTIONS = [
+  { value: 'all', label: 'All Complexity' },
+  { value: 'beginner', label: 'Beginner' },
+  { value: 'intermediate', label: 'Intermediate' },
+  { value: 'advanced', label: 'Advanced' },
+];
+
+/* ═══════════════════════════════════════════════
+   LAZY IFRAME & CARD
+═══════════════════════════════════════════════ */
+function ComplexityBadge({ level }: { level: string }) {
+  const colors: Record<string, { bg: string; text: string; label: string }> = {
+    beginner:     { bg: 'rgba(16,185,129,0.1)',  text: '#10B981', label: 'Beginner' },
+    intermediate: { bg: 'rgba(245,158,11,0.1)',  text: '#F59E0B', label: 'Intermediate' },
+    advanced:     { bg: 'rgba(239,68,68,0.1)',   text: '#EF4444', label: 'Advanced' },
+  };
+  const c = colors[level] ?? colors.beginner;
+  return (
+    <span style={{
+      padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 600,
+      letterSpacing: '0.04em', background: c.bg, color: c.text, textTransform: 'uppercase'
+    }}>
+      {c.label}
+    </span>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <div style={{
+      background: '#0F1623', border: '1px solid rgba(27,79,216,0.10)',
+      borderRadius: 14, overflow: 'hidden', animation: 'skeleton-pulse 1.5s ease-in-out infinite',
+    }}>
+      <div style={{ height: 200, background: 'rgba(59,130,246,0.04)' }} />
+      <div style={{ padding: '16px 18px' }}>
+        <div style={{ height: 14, background: 'rgba(59,130,246,0.07)', borderRadius: 6, marginBottom: 8, width: '60%' }} />
+        <div style={{ height: 10, background: 'rgba(59,130,246,0.05)', borderRadius: 6, width: '40%' }} />
+      </div>
+    </div>
+  );
+}
+
+function LazyIframe({ srcDoc, title }: { srcDoc: string; title: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setVisible(true); observer.disconnect(); } },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref} style={{ width: '100%', height: '100%', position: 'relative' }}>
+      {visible ? (
+        <iframe
+          title={title} srcDoc={srcDoc} sandbox="allow-scripts allow-same-origin" scrolling="no"
+          style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+        />
+      ) : (
+        <div style={{ width: '100%', height: '100%', background: 'rgba(59,130,246,0.03)' }} />
+      )}
+    </div>
+  );
+}
+
+function TemplateCard({ template }: { template: Template }) {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-white flex flex-col font-sans overflow-x-hidden selection:bg-[#f77f00]/30">
-      {/* Ambient Glow background */}
-      <div className="fixed inset-0 pointer-events-none -z-10 flex items-start justify-center overflow-hidden">
-        <div className="absolute top-[-15%] w-[1200px] h-[900px] bg-[radial-gradient(circle_at_center,rgba(247,127,0,0.18)_0%,rgba(0,0,0,0)_50%)] blur-3xl mix-blend-screen" />
+    <div
+      onClick={() => router.push(`/templates/${template.id}`)}
+      className="group relative component-card flex flex-col"
+      style={{
+        background: '#0F1623', border: '1px solid rgba(27,79,216,0.15)',
+        borderRadius: 16, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.3s ease',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = 'rgba(245,158,11,0.4)';
+        e.currentTarget.style.transform = 'translateY(-4px)';
+        e.currentTarget.style.boxShadow = '0 12px 40px rgba(0,0,0,0.8), 0 0 20px rgba(245,158,11,0.1)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = 'rgba(27,79,216,0.15)';
+        e.currentTarget.style.transform = 'translateY(0)';
+        e.currentTarget.style.boxShadow = 'none';
+      }}
+    >
+      <div style={{ height: 220, background: 'radial-gradient(ellipse at top, rgba(27,79,216,0.12) 0%, rgba(10,14,26,0.95) 80%)', position: 'relative', overflow: 'hidden' }}>
+        {template.html_content ? (
+          <LazyIframe srcDoc={`<style>body{display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:transparent;overflow:hidden;cursor:pointer;}</style>${template.html_content}<script>document.body.addEventListener('click', function(e) { if(e.target === document.body || e.target === document.documentElement) window.parent.postMessage({type:'card_click', id:'${template.id}'}, '*'); });</script>`} title={template.name} />
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'rgba(138,155,190,0.25)', fontSize: 13, flexDirection: 'column', gap: 8 }}>
+            <Layers size={24} style={{ opacity: 0.4 }} />
+            <span style={{ fontSize: 12 }}>No Preview Available</span>
+          </div>
+        )}
+
+        {template.is_featured && (
+          <div style={{
+            position: 'absolute', top: 12, right: 12, background: 'rgba(245,158,11,0.9)', backdropFilter: 'blur(8px)',
+            borderRadius: 6, padding: '4px 10px', fontSize: 10, fontWeight: 700, color: '#fff',
+            letterSpacing: '0.06em', textTransform: 'uppercase', border: '1px solid rgba(245,158,11,0.5)',
+            boxShadow: '0 4px 15px rgba(245,158,11,0.3)',
+          }}>
+            ★ Featured
+          </div>
+        )}
+
+        <div className="absolute bottom-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 pointer-events-none">
+          <button
+            className="pointer-events-auto flex items-center justify-center gap-2 bg-gradient-to-r from-[#1B4FD8] to-[#103A9E] text-white text-sm font-medium px-4 py-2 rounded-full shadow-[0_4px_20px_rgba(27,79,216,0.5)] transform translate-y-2 group-hover:translate-y-0 transition-all duration-300 hover:brightness-110 hover:scale-105"
+            onClick={(e) => { e.stopPropagation(); router.push(`/templates/${template.id}`); }}
+          >
+            <Code2 size={14} /> Get Code
+          </button>
+        </div>
       </div>
 
-      {/* Navbar */}
-      <nav className="relative z-50 flex items-center justify-between px-8 py-5">
-        <Link href="/dashboard" className="forge-logo flex-shrink-0 w-28 h-8 flex items-center justify-center relative ml-2 lg:ml-4">
-          <img src="/logo-full.png" alt="LWCForge" className="absolute h-[140px] w-auto max-w-none object-contain pointer-events-none" />
-        </Link>
-        <div className="flex items-center gap-8">
-           <Link href="/dashboard" className="text-sm text-[#a1a1aa] hover:text-white transition-colors">
-              Dashboard
-           </Link>
-           <Link href="/dashboard" className="text-sm font-semibold bg-gradient-to-r from-[#f77f00] to-[#fd6412] text-white px-5 py-2 rounded-lg shadow-[0_0_20px_rgba(247,127,0,0.4)] hover:shadow-[0_0_30px_rgba(247,127,0,0.6)] transition-all">
-              Get Started
-           </Link>
+      <div style={{ padding: '16px 20px', background: '#0F1623' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <span style={{ color: '#F3F3F3', fontSize: 16, fontWeight: 600, letterSpacing: '-0.01em', lineHeight: 1.3 }}>{template.name}</span>
+          <ComplexityBadge level={template.complexity} />
         </div>
-      </nav>
-
-      {/* Hero */}
-      <main className="flex-1 flex flex-col items-center pt-24 pb-24 px-6 z-10 w-full">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#f77f00]/20 bg-[#f77f00]/[0.05] text-[#f77f00] text-sm font-medium mb-8 backdrop-blur-md">
-          <CheckCircle2 size={16} className="text-[#f77f00]" />
-          Production-ready Components
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ color: '#F3F3F3', fontSize: 11, fontWeight: 500, background: 'rgba(245,158,11,0.15)', padding: '3px 10px', borderRadius: 999, border: '1px solid rgba(245,158,11,0.25)' }}>
+            {template.category}
+          </span>
+          {template.has_animation && <span style={{ color: '#8A9BBE', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}><Zap size={12} className="text-[#3B82F6]" /> Animated</span>}
+          {template.has_javascript && <span style={{ color: '#8A9BBE', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}><Code2 size={12} className="text-[#F59E0B]" /> JS</span>}
         </div>
-        
-        <h1 className="text-5xl md:text-6xl lg:text-[72px] font-bold text-center leading-[1.05] tracking-tight mb-6">
-          Premium LWC<br/>Template Gallery
-        </h1>
-        
-        <p className="text-[#a1a1aa] text-center text-lg max-w-2xl mx-auto leading-relaxed mb-16">
-          Production-ready Lightning Web Components for high-end<br className="hidden md:block" />SaaS applications. Customize in seconds.
-        </p>
-
-        {/* Categories Bar */}
-        <div className="flex items-center p-1.5 rounded-full bg-[#18181b]/80 border border-white/10 backdrop-blur-md mb-20 shadow-2xl">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(cat)}
-              className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
-                activeCategory === cat
-                  ? 'bg-gradient-to-r from-[#ff8c42] to-[#fd6412] text-white shadow-[0_4px_15px_rgba(247,127,0,0.3)]'
-                  : 'text-[#a1a1aa] hover:text-white hover:bg-white/5'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-
-        {/* Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl w-full mx-auto pb-10">
-          {TEMPLATES.map((t) => (
-            <div 
-              key={t.slug}
-              className={`flex flex-col bg-[#111111]/90 backdrop-blur-md rounded-2xl overflow-hidden
-                ${t.isFeatured ? 'border-[1px] border-[#f77f00] shadow-[0_0_40px_-10px_rgba(247,127,0,0.3)]' : 'border-[1px] border-white/5'}`}
-            >
-               {/* Preview Area */}
-               <div className="h-[210px] p-4 pb-0 relative bg-black/20">
-                  <div className="w-full h-full bg-gradient-to-b from-[#3a2012] to-[#121212] rounded-t-xl overflow-hidden relative">
-                     {t.isFeatured && (
-                       <div className="absolute top-3 right-3 bg-white/10 backdrop-blur-md text-white/90 text-[9px] font-bold px-2 py-1.5 rounded uppercase tracking-wider z-10">
-                         FEATURED
-                       </div>
-                     )}
-                     {t.preview}
-                  </div>
-               </div>
-
-               {/* Content Area */}
-               <div className="p-6 flex flex-col flex-1 border-t border-transparent bg-[#111111]">
-                  <h3 className="text-xl font-bold text-white mb-2">{t.name}</h3>
-                  <p className="text-sm text-[#a1a1aa] leading-relaxed mb-6 flex-1 min-h-[40px]">
-                    {t.description}
-                  </p>
-                  
-                  <div className="flex flex-wrap gap-2 mb-6">
-                    {t.tags.map(tag => (
-                      <span key={tag} className="px-2.5 py-1 rounded-full bg-white/[0.03] border border-white/10 text-xs text-[#a1a1aa] font-medium tracking-wide">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={() => router.push(`/dashboard?new=1&template=${t.slug}`)}
-                    className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-semibold transition-all duration-300
-                      ${t.isFeatured 
-                        ? 'bg-gradient-to-r from-[#f77f00] to-[#e85d04] text-white shadow-[0_0_20px_rgba(247,127,0,0.3)] hover:shadow-[0_0_30px_rgba(247,127,0,0.5)]' 
-                        : 'bg-[#361e12] border border-white/5 text-[#dca581] hover:bg-[#462818] hover:text-white'}`}
-                  >
-                    Use Template {t.hasArrowBtn && <ArrowUpRight size={16} strokeWidth={2.5} />}
-                  </button>
-               </div>
-            </div>
-          ))}
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="w-full flex flex-col items-center justify-center pb-12 pt-8 mt-auto relative z-10">
-        <Link href="/" className="forge-logo flex-shrink-0 w-24 h-6 flex items-center justify-center relative mb-3 opacity-90 hover:opacity-100 transition-opacity">
-          <img src="/logo-full.png" alt="LWCForge" className="absolute h-[100px] w-auto max-w-none object-contain pointer-events-none" />
-        </Link>
-        <p className="text-[13px] text-[#71717a]">All templates are free and open</p>
-      </footer>
+      </div>
     </div>
   );
+}
+
+/* ═══════════════════════════════════════════════
+   NAVBAR & WRAPPER
+═══════════════════════════════════════════════ */
+function Navbar({ hasSession, isLoading, onConnect }: { hasSession: boolean | null; isLoading: boolean; onConnect: () => void; }) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 200, display: "flex", justifyContent: "center", padding: "16px 20px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 20px", background: "rgba(15,20,35,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderRadius: 999, boxShadow: "0 8px 32px rgba(0,0,0,0.5)", width: "100%", maxWidth: 860, position: "relative" }}>
+        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", flexShrink: 0 }}>
+          <img src="/logo-studio.png" alt="LWC Studio" style={{ height: 40, width: "auto", objectFit: "contain" }} />
+        </Link>
+        <nav className="hidden md:flex" style={{ alignItems: "center", gap: 28 }}>
+          {NAV_LINKS.map((item, i) => (
+            <motion.div key={item.label} initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: i * 0.06 }}>
+              <Link href={item.href} style={{ fontSize: 14, color: "rgba(255,255,255,0.7)", textDecoration: "none", fontWeight: 500, transition: "color 0.2s" }}
+                onMouseEnter={e => (e.currentTarget.style.color = "#f59e0b")}
+                onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.7)")}>
+                {item.label}
+              </Link>
+            </motion.div>
+          ))}
+        </nav>
+        <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.3, delay: 0.25 }} className="hidden sm:block">
+          {hasSession ? (
+            <Link href="/dashboard" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "9px 22px", fontSize: 14, fontWeight: 600, color: "#fff", background: "#2563eb", borderRadius: 999, textDecoration: "none", boxShadow: "0 0 20px rgba(37,99,235,0.4)", transition: "filter 0.2s" }}
+              onMouseEnter={e => (e.currentTarget.style.filter = "brightness(1.15)")}
+              onMouseLeave={e => (e.currentTarget.style.filter = "brightness(1)")}>
+              Dashboard →
+            </Link>
+          ) : (
+            <button onClick={onConnect} disabled={isLoading} style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 22px", fontSize: 14, fontWeight: 600, color: "#fff", background: "#2563eb", borderRadius: 999, border: "none", cursor: "pointer", boxShadow: "0 0 20px rgba(37,99,235,0.4)", opacity: isLoading ? 0.65 : 1, transition: "filter 0.2s" }}
+              onMouseEnter={e => !isLoading && ((e.currentTarget as HTMLButtonElement).style.filter = "brightness(1.15)")}
+              onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.filter = "brightness(1)")}>
+              {isLoading ? <><Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> Connecting…</> : <><Cloud size={14} /> Connect Org</>}
+            </button>
+          )}
+        </motion.div>
+        <button className="md:hidden" style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", padding: 4 }} onClick={() => setIsOpen(!isOpen)}>
+          <Menu size={22} />
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div initial={{ opacity: 0, x: "100%" }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            style={{ position: "fixed", inset: 0, background: "#07090f", zIndex: 300, paddingTop: 96, paddingLeft: 32, paddingRight: 32 }}>
+            <motion.button style={{ position: "absolute", top: 24, right: 24, background: "none", border: "none", cursor: "pointer", color: "#fff" }} onClick={() => setIsOpen(false)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+              <X size={24} />
+            </motion.button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              {NAV_LINKS.map((item, i) => (
+                <motion.div key={item.label} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.08 + 0.1 }} exit={{ opacity: 0, x: 20 }}>
+                  <Link href={item.href} onClick={() => setIsOpen(false)} style={{ fontSize: 20, fontWeight: 600, color: "#fff", textDecoration: "none" }}>{item.label}</Link>
+                </motion.div>
+              ))}
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} exit={{ opacity: 0, y: 20 }} style={{ marginTop: 16 }}>
+                {hasSession ? (
+                  <Link href="/dashboard" style={{ display: "block", textAlign: "center", padding: "14px", fontSize: 16, fontWeight: 600, color: "#fff", background: "#2563eb", borderRadius: 999, textDecoration: "none" }}>Go to Dashboard</Link>
+                ) : (
+                  <button onClick={() => { onConnect(); setIsOpen(false); }} disabled={isLoading} style={{ width: "100%", textAlign: "center", padding: "14px", fontSize: 16, fontWeight: 600, color: "#fff", background: "#2563eb", borderRadius: 999, border: "none", cursor: "pointer" }}>{isLoading ? "Connecting…" : "Connect Salesforce Org"}</button>
+                )}
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function GlobalStyles() {
+  useEffect(() => {
+    const id = "lwcs-global-templates"
+    if (document.getElementById(id)) return
+    const el = document.createElement("style")
+    el.id = id
+    el.textContent = `
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+      html { background-color: #07090f; }
+      @keyframes twinkle {
+        0%,100% { opacity: var(--op); transform: scale(1); }
+        50% { opacity: calc(var(--op)*0.15); transform: scale(0.65); }
+      }
+      @keyframes skeleton-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      input::placeholder { color: rgba(255,255,255,0.4); }
+    `
+    document.head.appendChild(el)
+  }, [])
+  return null
+}
+
+function CustomSelect({ value, onChange, options, minWidth = 140 }: { value: string, onChange: (v: string) => void, options: {value: string, label: string}[], minWidth?: number }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  const selectedEntry = options.find(o => o.value === value) || options[0];
+
+  return (
+    <div ref={ref} style={{ position: "relative", minWidth }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+          background: "#0c101c", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "12px 16px",
+          color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 500, cursor: "pointer", outline: "none",
+        }}
+      >
+        <span style={{ whiteSpace: "nowrap" }}>{selectedEntry.label}</span>
+        <ChevronDown size={14} style={{ color: "rgba(255,255,255,0.4)" }} />
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.15 }}
+            style={{ position: "absolute", top: "100%", left: 0, marginTop: 4, background: "#111827", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, zIndex: 50, padding: 4, minWidth: "100%", whiteSpace: "nowrap", boxShadow: "0 10px 30px rgba(0,0,0,0.5)" }}
+          >
+            {options.map(o => (
+              <button
+                key={o.value} onClick={() => { onChange(o.value); setOpen(false); }}
+                style={{ width: "100%", textAlign: "left", padding: "8px 12px", background: o.value === value ? "rgba(37,99,235,0.15)" : "transparent", color: o.value === value ? "#3b82f6" : "rgba(255,255,255,0.7)", border: "none", borderRadius: 4, fontSize: 13, cursor: "pointer", transition: "background 0.2s" }}
+                onMouseEnter={e => { if (o.value !== value) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                onMouseLeave={e => { if (o.value !== value) e.currentTarget.style.background = "transparent"; }}
+              >
+                {o.label}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function TemplatesContent() {
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedComplexity, setSelectedComplexity] = useState("all");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [hasSession, setHasSession] = useState<boolean | null>(null);
+
+  const router = useRouter();
+
+  useEffect(() => {
+    import("@supabase/ssr").then(({ createBrowserClient }) => {
+      const sb = createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      sb.auth.getUser().then(({ data }) => setHasSession(!!data.user));
+    });
+
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'card_click' && e.data?.id) {
+        router.push(`/templates/${e.data.id}`);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [router]);
+
+  const handleSalesforceConnect = async () => {
+    try {
+      setIsConnecting(true);
+      setError(null);
+      const response = await fetch("/api/auth/salesforce/initiate", {
+        method: "POST", headers: { "Content-Type": "application/json" }, cache: "no-store",
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to initiate Salesforce login");
+      }
+      const { authUrl } = await response.json();
+      window.location.href = authUrl;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred connecting to Salesforce");
+      setIsConnecting(false);
+    }
+  };
+
+  const fetchTemplates = useCallback(async (reset = false) => {
+    setLoading(true);
+    setError(null);
+
+    const params = new URLSearchParams();
+    params.set("limit", "24");
+    params.set("page", reset ? "1" : String(page));
+    if (selectedCategory !== "all") params.set("category", selectedCategory);
+    if (selectedComplexity !== "all") params.set("complexity", selectedComplexity);
+    if (search) params.set("search", search);
+
+    try {
+      const res = await fetch(`/api/templates?${params}`);
+      if (!res.ok) throw new Error("Failed to load templates");
+      const data: TemplatesResponse = await res.json();
+      setTemplates(data.templates);
+      setTotalPages(data.totalPages);
+      if (reset) setPage(1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedCategory, selectedComplexity, search, page]);
+
+  useEffect(() => { fetchTemplates(true); }, [fetchTemplates, selectedCategory, selectedComplexity, search]);
+  useEffect(() => { if (page > 1) fetchTemplates(); }, [fetchTemplates, page]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchInput), 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#07090f", display: "flex", flexDirection: "column", fontFamily: "'Inter', sans-serif" }}>
+      <GlobalStyles />
+      <Navbar hasSession={hasSession} isLoading={isConnecting} onConnect={handleSalesforceConnect} />
+
+      {/* Hero Section */}
+      <section style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 140, paddingBottom: 64, overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, zIndex: 0, background: `radial-gradient(ellipse 80% 60% at 50% 28%, rgba(30,50,120,0.5) 0%, transparent 70%), radial-gradient(ellipse 55% 40% at 85% 55%, rgba(80,30,120,0.3) 0%, transparent 60%), radial-gradient(ellipse 45% 30% at 15% 70%, rgba(20,40,110,0.2) 0%, transparent 60%)` }} />
+        <div style={{ position: "absolute", inset: 0, zIndex: 0 }}>
+          {STARS.map((s, i) => (
+            <div key={i} style={{ position: "absolute", borderRadius: "50%", background: "white", width: s.size, height: s.size, left: `${s.x}%`, top: `${s.y}%`, ["--op" as string]: s.opacity, opacity: s.opacity, animation: `twinkle ${s.dur.toFixed(1)}s ease-in-out infinite ${s.delay.toFixed(1)}s` }} />
+          ))}
+        </div>
+
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} style={{ position: "relative", zIndex: 2, display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", maxWidth: 960, width: "100%", padding: "0 24px" }}>
+          <h1 style={{ fontSize: "clamp(36px, 5vw, 56px)", fontWeight: 800, color: "#fff", letterSpacing: "-1.5px", marginBottom: 20 }}>
+            Templates Library
+          </h1>
+          <p style={{ fontSize: "clamp(15px, 2vw, 17px)", lineHeight: 1.8, color: "rgba(255,255,255,0.65)", maxWidth: 740, marginBottom: 48 }}>
+            Discover production-ready Lightning Web Components designed for real Salesforce projects. Browse beautiful, reusable, and deployable templates built to save development time and improve UI quality across your Salesforce applications.
+          </p>
+
+          {/* Search & Filters Action Bar */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", width: "100%", justifyContent: "center" }}>
+            <div style={{ position: "relative", flex: "1 1 320px", maxWidth: 600 }}>
+              <Search size={16} style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.4)" }} />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search templates by name, category, or use case..."
+                style={{ width: "100%", background: "#0c101c", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, padding: "12px 16px 12px 42px", color: "#fff", fontSize: 13, outline: "none", boxShadow: "inset 0 2px 4px rgba(0,0,0,0.2)" }}
+              />
+              {searchInput && (
+                <button onClick={() => setSearchInput("")} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={14} /></button>
+              )}
+            </div>
+            
+            <CustomSelect value={selectedCategory} onChange={setSelectedCategory} options={CATEGORIES} minWidth={160} />
+            <CustomSelect value={selectedComplexity} onChange={setSelectedComplexity} options={COMPLEXITY_OPTIONS} minWidth={150} />
+
+            <button
+              onClick={() => { setSearchInput(""); setSelectedCategory("all"); setSelectedComplexity("all"); }}
+              style={{ background: "#0c101c", border: "1px solid rgba(255,255,255,0.1)", padding: "12px 20px", borderRadius: 8, color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: 500, cursor: "pointer", transition: "all 0.2s" }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "#fff"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.2)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "rgba(255,255,255,0.6)"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)"; }}
+            >
+              Reset Filters
+            </button>
+          </div>
+        </motion.div>
+      </section>
+
+      {/* Main Grid Content */}
+      <main style={{ flex: 1, padding: "20px 24px 80px", maxWidth: 1400, margin: "0 auto", width: "100%" }}>
+        {error && (
+          <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 12, padding: "16px 20px", color: "#fca5a5", marginBottom: 24, display: "flex", alignItems: "center", gap: 12 }}>
+            <X size={16} /> {error}
+            <button onClick={() => fetchTemplates(true)} style={{ marginLeft: "auto", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, color: "#fca5a5", padding: "4px 12px", cursor: "pointer", fontSize: 12 }}>Retry</button>
+          </div>
+        )}
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 24 }}>
+          {loading
+            ? Array.from({ length: 12 }, (_, i) => <SkeletonCard key={i} />)
+            : templates.map((t) => <TemplateCard key={t.id} template={t} />)
+          }
+        </div>
+
+        {!loading && templates.length === 0 && !error && (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 20px", textAlign: "center" }}>
+            <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", padding: 24, borderRadius: "50%", marginBottom: 16 }}>
+              <Search size={32} style={{ color: "rgba(255,255,255,0.3)" }} />
+            </div>
+            <h3 style={{ fontSize: 18, fontWeight: 600, color: "#fff", marginBottom: 6 }}>No templates found</h3>
+            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 14, marginBottom: 24 }}>Try adjusting your filters or search terms.</p>
+            <button onClick={() => { setSearchInput(""); setSelectedCategory("all"); setSelectedComplexity("all"); }} style={{ background: "#2563eb", color: "#fff", padding: "10px 24px", borderRadius: 8, fontSize: 14, fontWeight: 500, border: "none", cursor: "pointer" }}>Clear all filters</button>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {!loading && totalPages > 1 && (
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 16, marginTop: 64 }}>
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+              style={{ background: page <= 1 ? "transparent" : "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", padding: "10px 20px", borderRadius: 8, color: page <= 1 ? "rgba(255,255,255,0.3)" : "#fff", cursor: page <= 1 ? "default" : "pointer", fontSize: 13, fontWeight: 500 }}
+            >
+              ← Previous
+            </button>
+            <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Page <strong style={{ color: "#fff" }}>{page}</strong> of {totalPages}</span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+              style={{ background: page >= totalPages ? "transparent" : "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", padding: "10px 20px", borderRadius: 8, color: page >= totalPages ? "rgba(255,255,255,0.3)" : "#fff", cursor: page >= totalPages ? "default" : "pointer", fontSize: 13, fontWeight: 500 }}
+            >
+              Next →
+            </button>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+export default function TemplatesPage() {
+  return (
+    <Suspense fallback={<div style={{ minHeight: "100vh", background: "#07090f" }} />}>
+      <TemplatesContent />
+    </Suspense>
+  )
 }

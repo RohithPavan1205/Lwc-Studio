@@ -404,7 +404,7 @@ export default function SettingsPage() {
               ) : (
                 <div className="space-y-4">
                   <p className="text-sm text-[var(--text-secondary)]">
-                    Connect your Salesforce org to deploy Lightning Web Components directly from LWCForge.
+                    Connect your Salesforce org to deploy Lightning Web Components directly from LWC Studio.
                   </p>
 
                   {orgMsg && (

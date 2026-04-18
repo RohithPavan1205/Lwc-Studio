@@ -27,8 +27,8 @@ export default function AuthErrorPage({ searchParams }: AuthErrorPageProps) {
       </div>
 
       {/* Logo */}
-      <Link href="/" className="forge-logo mb-12 relative z-10 flex flex-col items-center h-12 w-40 justify-center shrink-0">
-        <img src="/logo-full.png" alt="LWCForge" className="absolute h-[180px] w-auto max-w-none object-contain pointer-events-none" />
+      <Link href="/" className="forge-logo mb-12 relative z-10 flex flex-col items-center justify-center shrink-0">
+        <img src="/logo-studio.png" alt="LWC Studio" className="h-[140px] w-auto object-contain" />
       </Link>
 
       {/* Error Card */}

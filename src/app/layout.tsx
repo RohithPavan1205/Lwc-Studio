@@ -1,32 +1,15 @@
 /* eslint-disable @next/next/no-page-custom-font */
 import type { Metadata } from 'next';
-import localFont from 'next/font/local';
-import { DM_Mono } from 'next/font/google';
 import './globals.css';
 
-// Geist is available as a local font in the project
-const geist = localFont({
-  src: './fonts/GeistVF.woff',
-  variable: '--font-geist',
-  display: 'swap',
-});
-
-const dmMono = DM_Mono({
-  subsets: ['latin'],
-  weight: ['300', '400', '500'],
-  style: ['normal', 'italic'],
-  variable: '--font-dm-mono',
-  display: 'swap',
-});
-
 export const metadata: Metadata = {
-  title: 'LWCForge — Build Lightning Web Components 10x Faster',
+  title: 'LWC Studio — Design-First LWC Development',
   description:
-    'Write LWC code in your browser. Preview renders in your actual Salesforce org instantly. No 30-second deploy wait.',
-  keywords: ['Salesforce', 'LWC', 'Lightning Web Components', 'IDE', 'Developer Tools'],
+    'LWC Studio is a modern developer platform for building, previewing, and deploying Lightning Web Components with speed and precision.',
+  keywords: ['Salesforce', 'LWC', 'Lightning Web Components', 'Design System', 'Developer Tools', 'LWC Studio'],
   openGraph: {
-    title: 'LWCForge — Build LWC 10x Faster',
-    description: 'Write LWC code in your browser. Preview renders in your Salesforce org instantly.',
+    title: 'LWC Studio — Design-First LWC Development',
+    description: 'Build, preview, and deploy Lightning Web Components with speed and precision.',
     type: 'website',
   },
 };
@@ -37,14 +20,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geist.variable} ${dmMono.variable}`}>
+    <html lang="en">
       <head>
         <link
-          href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap"
+          href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700,800&display=swap"
+          rel="stylesheet"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased" style={{ fontFamily: 'var(--font-geist), Geist, -apple-system, BlinkMacSystemFont, sans-serif' }}>
+      <body className="antialiased" style={{ fontFamily: "'Satoshi', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
         {children}
       </body>
     </html>

@@ -54,32 +54,32 @@ function DeployStatusPill({ status }: { status: DeployStatus }) {
   const configs: Record<DeployStatus, { label: string; cls: string }> = {
     synced: {
       label: 'Deployed',
-      cls: 'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[#0a1f10] text-[#3d8b4e] border-[#1a3a22]',
+      cls: 'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[#10B981]/10 text-[#10B981] border-[#10B981]/20',
     },
     draft: {
       label: 'Draft',
-      cls: 'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[#1a1500] text-[#856c00] border-[#2a2200]',
+      cls: 'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[#F59E0B]/10 text-[#F59E0B] border-[#F59E0B]/20',
     },
     error: {
       label: 'Error',
-      cls: 'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[var(--error-subtle)] text-[var(--error)] border-[var(--error)]',
+      cls: 'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[#EF4444]/10 text-[#EF4444] border-[#EF4444]/20',
     },
     deploying: {
       label: 'Deploying',
-      cls: 'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[#0a1520] text-[#2a7ab8] border-[#1a3050] animate-forge-pulse',
+      cls: 'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[#3B82F6]/10 text-[#3B82F6] border-[#3B82F6]/20 animate-forge-pulse',
     },
     'org-only': {
       label: 'Org Only',
-      cls: 'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[var(--bg-overlay)] text-[var(--text-tertiary)] border-[var(--border-subtle)]',
+      cls: 'inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full border bg-[#4B5563]/15 text-[#9CA3AF] border-[#4B5563]/20',
     },
   };
 
   const dotColors: Record<DeployStatus, string> = {
-    synced: '#3d8b4e',
-    draft: '#856c00',
-    error: 'var(--error)',
-    deploying: '#2a7ab8',
-    'org-only': 'var(--text-tertiary)',
+    synced: '#10B981',
+    draft: '#F59E0B',
+    error: '#EF4444',
+    deploying: '#3B82F6',
+    'org-only': '#4B5563',
   };
 
   const { label, cls } = configs[status];
@@ -148,7 +148,7 @@ function ComponentPreviewStrip({ index }: { index: number }) {
             width: bar.w,
             height: bar.h,
             borderRadius: 3,
-            background: bar.accent ? 'rgba(249,115,22,0.45)' : 'var(--bg-overlay)',
+            background: bar.accent ? 'rgba(249,115,22,0.35)' : 'rgba(255,255,255,0.06)',
           }}
         />
       ))}
@@ -826,8 +826,8 @@ function DashboardContent() {
         {/* Loading State */}
         {isLoading && (
           <div>
-            <div className="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-widest mb-4">
-              Forge Components
+            <div className="text-xs font-semibold text-[#4B5563] uppercase tracking-widest mb-4">
+              Studio Components
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {[1, 2, 3, 4, 5, 6].map((i) => <SkeletonCard key={i} />)}
@@ -863,8 +863,8 @@ function DashboardContent() {
             {filteredComponents.length > 0 && (
               <div className="mb-10">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xs font-semibold text-[var(--text-tertiary)] uppercase tracking-widest">
-                    Forge Components
+                  <h2 className="text-xs font-semibold text-[#4B5563] uppercase tracking-widest">
+                    Studio Components
                     <span className="ml-2 normal-case font-normal tracking-normal">
                       ({filteredComponents.length})
                     </span>

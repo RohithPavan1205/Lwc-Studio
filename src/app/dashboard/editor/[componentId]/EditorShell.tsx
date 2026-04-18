@@ -617,8 +617,8 @@ export default function EditorShell({
       <div className="editor-topbar flex items-center h-12 px-4 flex-shrink-0 gap-2">
         {/* Left: Logo + Breadcrumbs */}
         <div className="flex items-center gap-6 min-w-0 flex-1">
-          <Link href="/dashboard" className="forge-logo flex-shrink-0 relative h-7 w-32 flex items-center justify-center ml-2 lg:ml-4">
-            <img src="/logo-full.png" alt="LWCForge" className="absolute h-[120px] w-auto max-w-none object-contain pointer-events-none" />
+          <Link href="/dashboard" className="forge-logo flex-shrink-0 flex items-center gap-2.5 ml-2 lg:ml-4">
+            <img src="/logo-studio.png" alt="LWC Studio" className="h-[120px] w-auto object-contain" />
           </Link>
 
           <div className="flex items-center gap-1 text-xs min-w-0" style={{ color: 'var(--text-tertiary)' }}>

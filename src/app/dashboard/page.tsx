@@ -395,6 +395,7 @@ function DashboardContent() {
   const [components, setComponents] = useState<Component[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isOrgConnected, setIsOrgConnected] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [apiUsage, setApiUsage] = useState<{ used: number; limit: number } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');

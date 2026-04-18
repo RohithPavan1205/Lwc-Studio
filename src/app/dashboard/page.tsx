@@ -517,7 +517,6 @@ function DashboardContent() {
       <DashboardNavbar
         user={user}
         orgStatus={isOrgConnected ? 'connected' : 'disconnected'}
-        apiUsage={apiUsage ?? undefined}
       />
 
       <main className="flex-1 px-4 sm:px-6 py-8 max-w-6xl mx-auto w-full">

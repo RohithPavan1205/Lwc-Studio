@@ -157,12 +157,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (res.ok) {
         set({ isDirty: false, lastSavedAt: Date.now() });
       } else {
-        const errText = await res.text();
-        console.error('[store] Save failed:', errText);
         // isDirty stays true so user can retry
       }
-    } catch (err) {
-      console.error('[store] Save crashed:', err);
+    } catch {
       // isDirty stays true so user can retry
     } finally {
       set({ isSaving: false });

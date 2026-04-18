@@ -125,8 +125,8 @@ export default function SettingsPage() {
           .then((d) => { if (d.used !== undefined) setApiUsage({ used: d.used, limit: d.limit }); })
           .catch(() => {});
       }
-    } catch (err) {
-      console.error('[Settings] Load error:', err);
+    } catch {
+      // Load failed — user sees loading state
     } finally {
       setIsLoading(false);
     }

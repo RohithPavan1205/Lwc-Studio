@@ -51,8 +51,7 @@ export function createClient() {
         },
       }
     )
-  } catch (e) {
-    console.error('Failed to initialize Supabase client:', e);
+  } catch {
     return null;
   }
 }

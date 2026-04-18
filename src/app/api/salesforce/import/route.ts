@@ -30,7 +30,7 @@ export async function GET(request: Request) {
       .eq('user_id', user.id)
       .single();
 
-    console.log('[import API] Connection fetch - access_token present:', !!initialConn?.access_token, ', instance_url present:', !!initialConn?.instance_url);
+
 
     if (!initialConn?.access_token || !initialConn?.instance_url) {
       return NextResponse.json({ error: 'No Salesforce connection found' }, { status: 400 });
@@ -63,8 +63,7 @@ export async function GET(request: Request) {
       const query = `SELECT Id, DeveloperName, MasterLabel, ApiVersion FROM LightningComponentBundle WHERE NamespacePrefix = null`;
       const toolingUrl = `${SF_TOOLING_URL(instanceUrl)}?q=${encodeURIComponent(query)}`;
 
-      console.log('[import] instance_url:', instanceUrl);
-      console.log('[import] full URL:', toolingUrl);
+
       // FIX 6 — removed token length/prefix logging
 
       const res = await fetch(toolingUrl, {
@@ -72,10 +71,9 @@ export async function GET(request: Request) {
       });
 
       const rawText = await res.text();
-      console.log('[import] SF response status:', res.status);
+
 
       if (!res.ok) {
-        console.log('[import] SF response body:', rawText);
         return NextResponse.json({ error: 'Failed to list components', details: rawText }, { status: res.status });
       }
 
@@ -188,8 +186,8 @@ export async function GET(request: Request) {
             generatedXml += `</LightningComponentBundle>`;
             xml = generatedXml;
           }
-        } catch (e) {
-          console.error('[salesforce/import] Failed to build XML from bundle', e);
+        } catch {
+          // XML build failed — import continues with empty XML
         }
       }
 
@@ -205,7 +203,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 
   } catch (err: unknown) {
-    console.error('[salesforce/import]', err);
-    return NextResponse.json({ error: (err as Error).message || 'Server error' }, { status: 500 });
+    const message = err instanceof Error ? err.message : 'Server error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

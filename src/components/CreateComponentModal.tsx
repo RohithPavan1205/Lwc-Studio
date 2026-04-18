@@ -2,36 +2,18 @@
 
 import { useState, useEffect, useCallback, useId, useRef } from 'react';
 import { X, AlertCircle, ChevronDown, Info } from 'lucide-react';
+import {
+  LWC_TARGETS,
+  API_VERSIONS,
+  validateName,
+  camelToLabel,
+  type LwcTarget,
+  type ApiVersionEntry,
+} from '@/lib/lwcConstants';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export interface LwcTarget {
-  value: string;
-  label: string;
-}
-
-export const LWC_TARGETS: LwcTarget[] = [
-  { value: 'lightning__AppPage', label: 'Lightning App Page' },
-  { value: 'lightning__RecordPage', label: 'Lightning Record Page' },
-  { value: 'lightning__HomePage', label: 'Lightning Home Page' },
-  { value: 'lightning__FlowScreen', label: 'Lightning Flow Screen' },
-  { value: 'lightningCommunity__Page', label: 'Experience Builder Page' },
-  { value: 'lightning__UtilityBar', label: 'Utility Bar' },
-];
-
-export interface ApiVersionEntry {
-  value: string;
-  label: string;
-}
-
-export const API_VERSIONS: ApiVersionEntry[] = [
-  { value: '66.0', label: "66.0 (Spring '26)" },
-  { value: '65.0', label: "65.0 (Winter '26)" },
-  { value: '64.0', label: "64.0 (Summer '25)" },
-  { value: '63.0', label: "63.0 (Spring '25)" },
-  { value: '62.0', label: "62.0 (Winter '25)" },
-  { value: '61.0', label: "61.0 (Summer '24)" },
-];
+export type { LwcTarget, ApiVersionEntry };
 
 export interface ComponentFormValues {
   name: string;
@@ -50,25 +32,7 @@ export interface CreateComponentModalProps {
   onCreated: (componentId: string, componentName: string) => void;
 }
 
-// ─── Validation ───────────────────────────────────────────────────────────────
-
-const LWC_NAME_REGEX = /^[a-z][a-zA-Z0-9]*$/;
-
-function validateName(name: string): string | null {
-  if (!name) return null;
-  if (!LWC_NAME_REGEX.test(name))
-    return 'Must start with a lowercase letter — letters and numbers only, no spaces.';
-  if (name.length > 40) return 'Name must be 40 characters or less (Salesforce limit).';
-  return null;
-}
-
-// ─── camelCase → "Spaced Words" ───────────────────────────────────────────────
-
-function camelToLabel(name: string): string {
-  if (!name) return '';
-  const spaced = name.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
+export { LWC_TARGETS, API_VERSIONS };
 
 // ─── Boilerplate Generators ───────────────────────────────────────────────────
 

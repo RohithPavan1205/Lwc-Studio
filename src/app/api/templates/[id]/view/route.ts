@@ -38,8 +38,7 @@ export async function POST(
     }
 
     return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error('[POST /api/templates/[id]/view] crash:', err);
+  } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

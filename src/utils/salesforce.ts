@@ -14,7 +14,6 @@ export async function checkAndRefreshToken(userId: string): Promise<string | nul
     .single();
 
   if (error || !connection) {
-    console.error('No Salesforce connection found for user or error:', error);
     return null;
   }
 
@@ -28,9 +27,7 @@ export async function checkAndRefreshToken(userId: string): Promise<string | nul
   const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
 
   if (fiveMinutesFromNow >= expiryTime) {
-    console.log('Token expiring soon or expired. Refreshing...');
     if (!decryptedRefreshToken) {
-      console.error('No refresh token available to refresh access_token.');
       return null;
     }
 
@@ -39,8 +36,7 @@ export async function checkAndRefreshToken(userId: string): Promise<string | nul
     const loginUrl = process.env.SALESFORCE_LOGIN_URL || 'https://login.salesforce.com';
 
     if (!clientId || !clientSecret) {
-      console.error('Missing configured client ID/Secret for refresh');
-      return null;
+      throw new Error('Missing configured Salesforce client ID/Secret for token refresh');
     }
 
     try {
@@ -61,7 +57,6 @@ export async function checkAndRefreshToken(userId: string): Promise<string | nul
       const data = await response.json();
 
       if (!response.ok) {
-        console.error('Failed to refresh token API:', data);
         if (data.error === 'invalid_grant') {
           await supabase.from('salesforce_connections').update({ is_valid: false }).eq('user_id', userId);
           const error = new Error('Re-authentication required');
@@ -90,14 +85,12 @@ export async function checkAndRefreshToken(userId: string): Promise<string | nul
         .eq('user_id', userId);
 
       if (updateError) {
-        console.error('Failed to save refreshed token to DB:', updateError);
-        return null;
+        throw new Error(`Failed to save refreshed token: ${updateError.message}`);
       }
 
       return newAccessToken;
 
     } catch (err) {
-      console.error('Unexpected error during token refresh:', err);
       if (err instanceof Error && err.name === 'REAUTH_REQUIRED') {
         throw err;
       }

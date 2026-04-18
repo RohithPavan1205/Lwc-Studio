@@ -8,6 +8,7 @@ import Link from "next/link"
 import {
   Menu, X, ChevronDown, Loader2, Cloud, Search, Code2, Layers, Zap
 } from "lucide-react"
+import { useResponsiveColumns } from "@/hooks/useResponsiveColumns"
 
 /* ═══════════════════════════════════════════════
    TYPES & CONSTANTS
@@ -109,7 +110,7 @@ function SkeletonCard() {
   );
 }
 
-function LazyIframe({ srcDoc, title }: { srcDoc: string; title: string }) {
+function LazyIframe({ srcDoc, title, scale = 0.85 }: { srcDoc: string; title: string; scale?: number }) {
   const ref = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
 
@@ -129,7 +130,7 @@ function LazyIframe({ srcDoc, title }: { srcDoc: string; title: string }) {
       {visible ? (
         <iframe
           title={title} srcDoc={srcDoc} sandbox="allow-scripts allow-same-origin" scrolling="no"
-          style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+          style={{ width: `${100 / scale}%`, height: `${100 / scale}%`, border: 'none', display: 'block', transform: `scale(${scale})`, transformOrigin: 'top left' }}
         />
       ) : (
         <div style={{ width: '100%', height: '100%', background: 'rgba(59,130,246,0.03)' }} />
@@ -139,30 +140,34 @@ function LazyIframe({ srcDoc, title }: { srcDoc: string; title: string }) {
 }
 
 function TemplateCard({ template }: { template: Template }) {
-  const router = useRouter();
+  const contentLength = (template.html_content || '').length;
+  const isTall = contentLength > 500;
+  const previewHeight = isTall ? 400 : 220;
 
   return (
-    <div
-      onClick={() => router.push(`/templates/${template.id}`)}
-      className="group relative component-card flex flex-col"
-      style={{
-        background: '#0F1623', border: '1px solid rgba(27,79,216,0.15)',
-        borderRadius: 16, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.3s ease',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'rgba(245,158,11,0.4)';
-        e.currentTarget.style.transform = 'translateY(-4px)';
-        e.currentTarget.style.boxShadow = '0 12px 40px rgba(0,0,0,0.8), 0 0 20px rgba(245,158,11,0.1)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = 'rgba(27,79,216,0.15)';
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = 'none';
-      }}
-    >
-      <div style={{ height: 220, background: 'radial-gradient(ellipse at top, rgba(27,79,216,0.12) 0%, rgba(10,14,26,0.95) 80%)', position: 'relative', overflow: 'hidden' }}>
+    <div className="break-inside-avoid mb-6">
+      <div
+        onClick={() => router.push(`/templates/${template.id}`)}
+        className="group relative component-card flex flex-col"
+        style={{
+          top: 0,
+          background: '#0F1623', border: '1px solid rgba(27,79,216,0.15)',
+          borderRadius: 16, overflow: 'hidden', cursor: 'pointer', transition: 'all 0.3s ease',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.borderColor = 'rgba(245,158,11,0.4)';
+          e.currentTarget.style.top = '-4px';
+          e.currentTarget.style.boxShadow = '0 12px 40px rgba(0,0,0,0.8), 0 0 20px rgba(245,158,11,0.1)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.borderColor = 'rgba(27,79,216,0.15)';
+          e.currentTarget.style.top = '0px';
+          e.currentTarget.style.boxShadow = 'none';
+        }}
+      >
+        <div style={{ height: previewHeight, background: 'radial-gradient(ellipse at top, rgba(27,79,216,0.12) 0%, rgba(10,14,26,0.95) 80%)', position: 'relative', overflow: 'hidden' }}>
         {template.html_content ? (
-          <LazyIframe srcDoc={`<style>body{display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:transparent;overflow:hidden;cursor:pointer;}</style>${template.html_content}<script>document.body.addEventListener('click', function(e) { if(e.target === document.body || e.target === document.documentElement) window.parent.postMessage({type:'card_click', id:'${template.id}'}, '*'); });</script>`} title={template.name} />
+          <LazyIframe scale={isTall ? 0.70 : 0.85} srcDoc={`<style>body{display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:transparent;overflow:hidden;cursor:pointer;padding:32px;box-sizing:border-box;}</style>${template.html_content}<script>document.body.addEventListener('click', function(e) { if(e.target === document.body || e.target === document.documentElement) window.parent.postMessage({type:'card_click', id:'${template.id}'}, '*'); });</script>`} title={template.name} />
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'rgba(138,155,190,0.25)', fontSize: 13, flexDirection: 'column', gap: 8 }}>
             <Layers size={24} style={{ opacity: 0.4 }} />
@@ -204,6 +209,7 @@ function TemplateCard({ template }: { template: Template }) {
           {template.has_javascript && <span style={{ color: '#8A9BBE', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}><Code2 size={12} className="text-[#F59E0B]" /> JS</span>}
         </div>
       </div>
+    </div>
     </div>
   );
 }
@@ -353,6 +359,41 @@ function CustomSelect({ value, onChange, options, minWidth = 140 }: { value: str
   )
 }
 
+function MixTemplatesLayout({ templates }: { templates: Template[] }) {
+  const byCat: Record<string, Template[]> = {};
+  for (const t of templates) {
+    if (!byCat[t.category]) byCat[t.category] = [];
+    byCat[t.category].push(t);
+  }
+  
+  const interleaved: Template[] = [];
+  const keys = Object.keys(byCat);
+  let added = true;
+  while (added) {
+    added = false;
+    for (const key of keys) {
+      if (byCat[key].length > 0) {
+        interleaved.push(byCat[key].shift()!);
+        added = true;
+      }
+    }
+  }
+  const cols = useResponsiveColumns();
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: '24px', alignItems: 'start', width: '100%' }}>
+      {Array.from({ length: cols }).map((_, colIndex) => {
+        const colItems = interleaved.filter((_, i) => i % cols === colIndex);
+        return (
+          <div key={colIndex} className="flex flex-col gap-6 w-full min-w-0">
+            {colItems.map((t, i) => <TemplateCard key={`${t.id}-${i}`} template={t} />)}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function TemplatesContent() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
@@ -364,6 +405,7 @@ function TemplatesContent() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const cols = useResponsiveColumns();
   
   const [isConnecting, setIsConnecting] = useState(false);
   const [hasSession, setHasSession] = useState<boolean | null>(null);
@@ -407,13 +449,13 @@ function TemplatesContent() {
     }
   };
 
-  const fetchTemplates = useCallback(async (reset = false) => {
+  const fetchTemplates = useCallback(async (targetPage: number) => {
     setLoading(true);
     setError(null);
 
     const params = new URLSearchParams();
     params.set("limit", "24");
-    params.set("page", reset ? "1" : String(page));
+    params.set("page", String(targetPage));
     if (selectedCategory !== "all") params.set("category", selectedCategory);
     if (selectedComplexity !== "all") params.set("complexity", selectedComplexity);
     if (search) params.set("search", search);
@@ -424,16 +466,22 @@ function TemplatesContent() {
       const data: TemplatesResponse = await res.json();
       setTemplates(data.templates);
       setTotalPages(data.totalPages);
-      if (reset) setPage(1);
+      setPage(data.page);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
     }
-  }, [selectedCategory, selectedComplexity, search, page]);
+  }, [selectedCategory, selectedComplexity, search]);
 
-  useEffect(() => { fetchTemplates(true); }, [fetchTemplates, selectedCategory, selectedComplexity, search]);
-  useEffect(() => { if (page > 1) fetchTemplates(); }, [fetchTemplates, page]);
+  useEffect(() => { fetchTemplates(1); }, [fetchTemplates, selectedCategory, selectedComplexity, search]);
+  
+  const handlePageChange = (newPage: number) => {
+    if (newPage > 0 && newPage <= totalPages) {
+      setPage(newPage);
+      fetchTemplates(newPage);
+    }
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(searchInput), 400);
@@ -502,12 +550,28 @@ function TemplatesContent() {
           </div>
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 24 }}>
-          {loading
-            ? Array.from({ length: 12 }, (_, i) => <SkeletonCard key={i} />)
-            : templates.map((t) => <TemplateCard key={t.id} template={t} />)
-          }
-        </div>
+        {loading ? (
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: '24px', alignItems: 'start', width: '100%' }}>
+             {Array.from({ length: cols }).map((_, cIdx) => (
+                <div key={cIdx} className="flex flex-col gap-6 w-full min-w-0">
+                  {Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)}
+                </div>
+             ))}
+          </div>
+        ) : selectedCategory === 'all' ? (
+          <MixTemplatesLayout templates={templates} />
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: '24px', alignItems: 'start', width: '100%' }}>
+            {Array.from({ length: cols }).map((_, colIndex) => {
+              const colItems = templates.filter((_, i) => i % cols === colIndex);
+              return (
+                <div key={colIndex} className="flex flex-col gap-6 w-full min-w-0">
+                  {colItems.map((t) => <TemplateCard key={t.id} template={t} />)}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {!loading && templates.length === 0 && !error && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 20px", textAlign: "center" }}>
@@ -524,14 +588,14 @@ function TemplatesContent() {
         {!loading && totalPages > 1 && (
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 16, marginTop: 64 }}>
             <button
-              onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+              onClick={() => handlePageChange(Math.max(1, page - 1))} disabled={page <= 1}
               style={{ background: page <= 1 ? "transparent" : "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", padding: "10px 20px", borderRadius: 8, color: page <= 1 ? "rgba(255,255,255,0.3)" : "#fff", cursor: page <= 1 ? "default" : "pointer", fontSize: 13, fontWeight: 500 }}
             >
               ← Previous
             </button>
             <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>Page <strong style={{ color: "#fff" }}>{page}</strong> of {totalPages}</span>
             <button
-              onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+              onClick={() => handlePageChange(Math.min(totalPages, page + 1))} disabled={page >= totalPages}
               style={{ background: page >= totalPages ? "transparent" : "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", padding: "10px 20px", borderRadius: 8, color: page >= totalPages ? "rgba(255,255,255,0.3)" : "#fff", cursor: page >= totalPages ? "default" : "pointer", fontSize: 13, fontWeight: 500 }}
             >
               Next →

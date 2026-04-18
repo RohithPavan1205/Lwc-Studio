@@ -29,8 +29,7 @@ export async function GET(
     }
 
     return NextResponse.json({ template });
-  } catch (err) {
-    console.error('[GET /api/templates/[id]] crash:', err);
+  } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

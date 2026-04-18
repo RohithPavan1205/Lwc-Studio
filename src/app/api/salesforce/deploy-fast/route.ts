@@ -231,7 +231,6 @@ ${description}${targetXml}
     const deployText = await deployRes.text();
     const idMatch = deployText.match(/<id>([a-zA-Z0-9]+)<\/id>/);
     if (!idMatch) {
-      console.error('[deploy-fast] Failed to get processId:', deployText);
       return NextResponse.json(
         { error: 'Deploy failed to initiate. Check org permissions.' },
         { status: 500 }
@@ -239,7 +238,6 @@ ${description}${targetXml}
     }
 
     const processId = idMatch[1];
-    console.log('[deploy-fast] Process started:', processId);
 
     // ── Poll for completion (server-side, shorter timeout for "fast" deploy) ──
     const POLL_TIMEOUT_MS = 90_000; // 90s max
@@ -282,7 +280,7 @@ ${description}${targetXml}
         const done = doneMatch?.[1] === 'true';
         const status = statusMatch?.[1];
 
-        console.log(`[deploy-fast] Poll: done=${done}, status=${status}`);
+
 
         if (done) {
           isDone = true;
@@ -298,7 +296,6 @@ ${description}${targetXml}
           }
         }
       } catch (pollErr) {
-        console.error('[deploy-fast] Poll error:', pollErr);
         isDone = true;
         finalError = pollErr instanceof Error ? pollErr.message : 'Status check failed';
       }
@@ -307,16 +304,13 @@ ${description}${targetXml}
     const duration = Date.now() - startTime;
 
     if (isSuccess) {
-      console.log(`[SetupDeploy] Background deploy successful in: ${duration}ms`);
       return NextResponse.json({ success: true, duration });
     } else {
-      console.error(`[SetupDeploy] Background deploy failed: ${finalError}`);
       return NextResponse.json({ error: finalError }, { status: 500 });
     }
   } catch (err: unknown) {
     const duration = Date.now() - startTime;
     const msg = err instanceof Error ? err.message : 'Unknown server error';
-    console.error(`[SetupDeploy] Background deploy failed: ${msg}`);
     return NextResponse.json({ error: msg, duration }, { status: 500 });
   }
 }

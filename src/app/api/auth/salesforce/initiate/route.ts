@@ -44,7 +44,6 @@ export async function POST() {
 
     return NextResponse.json({ authUrl: authUrl.toString() });
   } catch (error) {
-    console.error('[SALESFORCE INIT] Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to initiate OAuth' },
       { status: 500 }

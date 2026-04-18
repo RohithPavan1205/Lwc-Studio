@@ -36,8 +36,8 @@ export async function GET() {
       // userinfo API provides organization_name usually along with user details
       orgName = userInfo.organization_name || userInfo.name || 'Salesforce Org';
     }
-  } catch (e) {
-    console.error('Failed to resolve user info', e);
+  } catch {
+    // Non-critical: org name resolution is best-effort
   }
 
   return NextResponse.json({

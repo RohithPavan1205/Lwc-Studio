@@ -55,7 +55,6 @@ export async function GET(request: Request) {
     const { data: templates, count, error } = await query.range(offset, offset + limit - 1);
 
     if (error) {
-      console.error('[GET /api/templates]', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -66,8 +65,7 @@ export async function GET(request: Request) {
       limit,
       totalPages: Math.ceil((count ?? 0) / limit),
     });
-  } catch (err) {
-    console.error('[GET /api/templates] crash:', err);
+  } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

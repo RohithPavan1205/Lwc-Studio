@@ -139,13 +139,13 @@ export async function GET(request: Request) {
       } else if (faultMatch) {
         errorMsg = faultMatch[1];
       } else {
-        console.error('[Deploy Status] Raw error response:', deployResultStr);
+        // Unknown error shape — include raw response in error message
+        errorMsg = `Deployment failed. Raw response available for debugging.`;
       }
 
       return NextResponse.json({ done: true, status: deployStatus, error: errorMsg, errors: structuredErrors });
     }
-  } catch (err: unknown) {
-    console.error('[Deploy Status] Crash:', err);
+  } catch {
     return NextResponse.json({ error: 'Server Exception' }, { status: 500 });
   }
 }

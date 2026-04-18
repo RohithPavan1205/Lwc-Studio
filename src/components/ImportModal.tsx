@@ -122,10 +122,10 @@ export default function ImportModal({ isOpen, onClose, onComplete, existingCompo
         });
 
         if (!createRes.ok) {
-           console.error('Failed to create', comp.DeveloperName);
+          // Import for this component failed; progress continues
         }
-      } catch (err) {
-        console.error('Import error for', comp.DeveloperName, err);
+      } catch {
+        // Import error for individual component; progress continues
       }
       completed++;
       setProgress(Math.round((completed / selected.length) * 100));

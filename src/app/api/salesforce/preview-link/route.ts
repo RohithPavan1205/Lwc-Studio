@@ -40,7 +40,6 @@ export async function GET(request: Request) {
       .single();
 
     if (connError || !conn?.instance_url) {
-      console.error('[preview-link] Connection fetch error:', connError);
       return NextResponse.json({ error: 'No Salesforce connection found' }, { status: 404 });
     }
 
@@ -52,8 +51,7 @@ export async function GET(request: Request) {
     const previewUrl = `${conn.instance_url}/secur/frontdoor.jsp?sid=${token}&retURL=${retURL}`;
 
     return NextResponse.json({ success: true, previewUrl });
-  } catch (err: unknown) {
-    console.error('[preview-link] Error:', err);
+  } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

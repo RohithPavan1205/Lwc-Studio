@@ -4,6 +4,8 @@
 import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import LwcEditor from '@/components/Editor';
+import LivePreview from '@/components/editor/LivePreview';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import Link from 'next/link';
 import {
   Save,
@@ -319,6 +321,7 @@ export default function EditorShell({
     dismissSetupBanner,
   } = useEditorStore();
 
+  const [showPreview, setShowPreview] = useState(false);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [reauthRequired, setReauthRequired] = useState(false);
   const [deployErrors, setDeployErrors] = useState<EditorError[]>([]);
@@ -421,8 +424,8 @@ export default function EditorShell({
   }, []);
 
   // Deploy handler
-  const handleDeploy = useCallback(async () => {
-    if (deployStatus === 'deploying' || setupBanner === 'in-progress') return;
+  const handleDeploy = useCallback(async (): Promise<boolean> => {
+    if (deployStatus === 'deploying' || setupBanner === 'in-progress') return false;
 
     const name = currentComponent.name;
     if (isDirty) await saveComponent();
@@ -447,12 +450,12 @@ export default function EditorShell({
         if (data.error === 'REAUTH_REQUIRED') {
           setReauthRequired(true);
           setDeployStatus('idle');
-          return;
+          return false;
         }
         const errMsg = data.details ?? data.error ?? 'Deploy failed to initiate';
         setDeployStatus('error', errMsg);
         setTimeout(() => setDeployStatus('idle'), 30000);
-        return;
+        return false;
       }
 
       if (data.success) {
@@ -461,7 +464,7 @@ export default function EditorShell({
         if (data.processId === 'skipped') {
           setLastDeployedAt(new Date(), 0);
           setTimeout(() => setDeployStatus('idle'), 5000);
-          return;
+          return true;
         }
 
         deployCredsRef.current = {
@@ -532,23 +535,27 @@ export default function EditorShell({
           }
         }
 
-        if (!isMountedRef.current) return;
+        if (!isMountedRef.current) return false;
 
         if (isSuccess) {
           const duration = Date.now() - deployStartTime;
           setLastDeployedAt(new Date(), duration);
           setDeployStatus('success');
           setTimeout(() => setDeployStatus('idle'), 5000);
+          return true;
         } else {
           setDeployStatus('error', finalError);
           setDeployErrors(finalErrorsArr);
           setTimeout(() => setDeployStatus('idle'), 30000);
+          return false;
         }
       }
+      return false;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Network error';
       setDeployStatus('error', msg);
       setTimeout(() => setDeployStatus('idle'), 30000);
+      return false;
     }
   }, [currentComponent, isDirty, saveComponent, setDeployStatus, setLastDeployedAt, deployStatus, setupBanner]);
 
@@ -567,6 +574,13 @@ export default function EditorShell({
       alert('Network error while generating preview link');
     } finally {
       setIsPreviewLoading(false);
+    }
+  };
+
+  const handleDeployAndOpenInOrg = async () => {
+    const success = await handleDeploy();
+    if (success) {
+      await handleOpenPreview();
     }
   };
 
@@ -695,27 +709,19 @@ export default function EditorShell({
             )}
           </div>
 
-          {/* ── Group 3: Preview (conditionally shown) ── */}
-          {previewAvailable && (
-            <>
-              <div className="editor-action-divider" />
-              <div className="editor-action-group">
-                <button
-                  onClick={handleOpenPreview}
-                  disabled={isPreviewLoading || !isOrgConnected}
-                  title="Preview in Salesforce org"
-                  className="editor-btn-preview"
-                >
-                  {isPreviewLoading ? (
-                    <Loader2 size={12} className="animate-forge-spin" />
-                  ) : (
-                    <Play size={12} />
-                  )}
-                  {isPreviewLoading ? 'Opening…' : 'Preview'}
-                </button>
-              </div>
-            </>
-          )}
+          {/* ── Group 3: Toggle Live Preview ── */}
+          <div className="editor-action-divider" />
+          <div className="editor-action-group">
+            <button
+              onClick={() => setShowPreview(!showPreview)}
+              title="Toggle Live Preview Sandbox"
+              className="editor-btn-preview"
+              style={showPreview ? { background: '#1e3a8a', color: 'white', border: '1px solid #3b82f6' } : {}}
+            >
+              <Play size={12} />
+              {showPreview ? 'Hide Preview' : 'Show Preview'}
+            </button>
+          </div>
 
           <div className="editor-action-divider" />
 
@@ -749,42 +755,66 @@ export default function EditorShell({
 
       {/* ── Editor Body ───────────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
-        <div className="flex flex-col flex-1 overflow-hidden min-w-0">
-          {isComponentLoaded ? (
-            <div className="editor-surface flex flex-col flex-1 overflow-hidden">
-              <LwcEditor
-                htmlCode={currentComponent.htmlContent}
-                jsCode={currentComponent.jsContent}
-                cssCode={currentComponent.cssContent}
-                xmlCode={currentComponent.xmlContent ?? ''}
-                errors={deployErrors}
-                onChange={(type, value) => {
-                  if (type === 'html') setHtml(value);
-                  else if (type === 'js') setJs(value);
-                  else if (type === 'css') setCss(value);
-                  else if (type === 'xml') setXml(value);
-                }}
-              />
-            </div>
-          ) : (
-            <div className="flex flex-1 items-center justify-center" style={{ background: '#1A1E25' }}>
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 size={26} className="animate-forge-spin" style={{ color: 'var(--forge-primary)' }} />
-                <span className="text-xs font-code" style={{ color: 'var(--text-tertiary)' }}>Loading component…</span>
+        <PanelGroup direction="horizontal">
+          <Panel defaultSize={showPreview ? 60 : 100} minSize={30} className="flex flex-col flex-1 overflow-hidden min-w-0">
+            {isComponentLoaded ? (
+              <div className="editor-surface flex flex-col flex-1 overflow-hidden">
+                <LwcEditor
+                  htmlCode={currentComponent.htmlContent}
+                  jsCode={currentComponent.jsContent}
+                  cssCode={currentComponent.cssContent}
+                  xmlCode={currentComponent.xmlContent ?? ''}
+                  errors={deployErrors}
+                  onChange={(type, value) => {
+                    if (type === 'html') setHtml(value);
+                    else if (type === 'js') setJs(value);
+                    else if (type === 'css') setCss(value);
+                    else if (type === 'xml') setXml(value);
+                  }}
+                />
               </div>
-            </div>
-          )}
+            ) : (
+               <div className="flex flex-1 items-center justify-center" style={{ background: '#1A1E25' }}>
+                 <div className="flex flex-col items-center gap-3">
+                   <Loader2 size={26} className="animate-forge-spin" style={{ color: 'var(--forge-primary)' }} />
+                   <span className="text-xs font-code" style={{ color: 'var(--text-tertiary)' }}>Loading component…</span>
+                 </div>
+               </div>
+            )}
 
-          {/* Status Bar */}
-          <StatusBar
-            isSaving={isSaving}
-            isDirty={isDirty}
-            lastSavedAt={lastSavedAt}
-            deployStatus={deployStatus}
-            lastDeployedAt={lastDeployedAt}
-            isSetupInProgress={isSetupInProgress}
-          />
-        </div>
+            {/* Status Bar */}
+            <StatusBar
+              isSaving={isSaving}
+              isDirty={isDirty}
+              lastSavedAt={lastSavedAt}
+              deployStatus={deployStatus}
+              lastDeployedAt={lastDeployedAt}
+              isSetupInProgress={isSetupInProgress}
+            />
+          </Panel>
+
+          {showPreview && (
+            <>
+              <PanelResizeHandle className="w-1.5 flex flex-col items-center justify-center bg-[var(--bg-void)] hover:bg-[#F77F00] active:bg-[#F77F00] transition-colors cursor-col-resize z-50">
+                <div className="h-8 w-0.5 bg-slate-600 rounded-full" />
+              </PanelResizeHandle>
+              <Panel defaultSize={40} minSize={25} className="flex flex-col bg-white overflow-hidden shadow-xl z-40">
+                {isComponentLoaded && (
+                  <LivePreview
+                    componentName={currentComponent.name}
+                    files={{
+                      html: currentComponent.htmlContent,
+                      js: currentComponent.jsContent,
+                      css: currentComponent.cssContent,
+                    }}
+                    onOpenInOrg={handleDeployAndOpenInOrg}
+                    isDeploying={deployStatus === 'deploying' || isPreviewLoading}
+                  />
+                )}
+              </Panel>
+            </>
+          )}
+        </PanelGroup>
       </div>
     </div>
   );

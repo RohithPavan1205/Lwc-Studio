@@ -145,7 +145,7 @@ export async function POST(request: Request) {
         insertError.message?.includes('column') ||
         insertError.message?.includes('does not exist')
       ) {
-        console.warn('[create] New columns not found, retrying without metadata columns:', insertError.message);
+        // New columns not found — retrying without metadata columns
         const { data: fallbackComponent, error: fallbackError } = await supabase
           .from('components')
           .insert({
@@ -161,14 +161,12 @@ export async function POST(request: Request) {
           .single();
 
         if (fallbackError || !fallbackComponent) {
-          console.error('[create] Fallback insert error:', fallbackError);
           return NextResponse.json({ error: 'Failed to create component' }, { status: 500 });
         }
 
         return NextResponse.json({ success: true, component: fallbackComponent }, { status: 201 });
       }
 
-      console.error('[create] Insert error:', insertError);
       return NextResponse.json({ error: 'Failed to create component' }, { status: 500 });
     }
 
@@ -178,7 +176,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, component }, { status: 201 });
   } catch (err: unknown) {
-    console.error('[create] Crash:', err);
+    void err;
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

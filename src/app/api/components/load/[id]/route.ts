@@ -32,8 +32,7 @@ export async function GET(
     }
 
     return NextResponse.json(data);
-  } catch (err) {
-    console.error('[load] Crash:', err);
+  } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
@@ -62,7 +61,6 @@ export async function DELETE(
       .eq('user_id', user.id); // ownership check
 
     if (error) {
-      console.error('[delete] Error:', error);
       return NextResponse.json({ error: 'Failed to delete component' }, { status: 500 });
     }
 
@@ -71,8 +69,7 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true });
-  } catch (err) {
-    console.error('[delete] Crash:', err);
+  } catch {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

@@ -23,9 +23,12 @@ import {
   LayoutGrid,
   List,
 } from 'lucide-react';
-import TopNavbar from '@/components/navigation/TopNavbar';
+import DashboardNavbar from '@/components/navigation/DashboardNavbar';
 import CreateComponentModal from '@/components/CreateComponentModal';
 import ImportModal from '@/components/ImportModal';
+import ComponentCard from '@/components/dashboard/ComponentCard';
+import ComponentListRow from '@/components/dashboard/ComponentListRow';
+import { useResponsiveColumns } from '@/hooks/useResponsiveColumns';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -36,6 +39,8 @@ interface Component {
   api_version?: string;
   created_at: string;
   updated_at: string;
+  html_content?: string;
+  css_content?: string;
 }
 
 interface UserProfile {
@@ -176,182 +181,8 @@ function SkeletonCard() {
   );
 }
 
-// ─── Component Card (Grid) ────────────────────────────────────────────────────
-
-interface ComponentCardProps {
-  component: Component;
-  onDelete: (c: Component) => void;
-  index: number;
-  status?: DeployStatus;
-}
-
-function ComponentCard({ component, onDelete, index, status = 'draft' }: ComponentCardProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  return (
-    <div
-      className="component-card forge-card interactive relative rounded-xl overflow-hidden group cursor-pointer"
-      style={{ animationDelay: `${Math.min(index, 8) * 40}ms` }}
-    >
-      {/* Orange top accent on hover */}
-      <div className="absolute left-0 top-0 right-0 h-px bg-[var(--forge-primary)] opacity-0 group-hover:opacity-60 transition-opacity duration-200" />
-
-      <Link href={`/dashboard/editor/${component.id}`} className="block p-5">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-3">
-          <div className="w-9 h-9 rounded-lg bg-[var(--forge-fire)] flex items-center justify-center flex-shrink-0">
-            <Zap size={16} className="text-[var(--forge-primary)]" />
-          </div>
-          <DeployStatusPill status={status} />
-        </div>
-
-        {/* Preview strip */}
-        <ComponentPreviewStrip index={index} />
-
-        {/* Name */}
-        <h3 className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--forge-primary)] transition-colors truncate mb-1">
-          {component.name}
-        </h3>
-        {component.master_label && component.master_label !== component.name && (
-          <p className="text-xs text-[var(--text-tertiary)] truncate mb-1">
-            {component.master_label}
-          </p>
-        )}
-
-        {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-[var(--border-subtle)] mt-2">
-          <span className="flex items-center gap-1 text-xs text-[var(--text-tertiary)]">
-            <Clock size={10} />
-            {component.updated_at
-              ? formatDistanceToNow(new Date(component.updated_at), { addSuffix: true })
-              : '—'}
-          </span>
-          {component.api_version && (
-            <span
-              className="text-[10px] text-[var(--text-tertiary)] font-code px-1.5 py-0.5 rounded"
-              style={{ background: 'var(--bg-overlay)', border: '0.5px solid var(--border-subtle)' }}
-            >
-              v{component.api_version}
-            </span>
-          )}
-        </div>
-      </Link>
-
-      {/* Overflow menu */}
-      <div className="absolute top-3 right-3" onClick={(e) => e.preventDefault()}>
-        <button
-          onClick={() => setMenuOpen((v) => !v)}
-          className="p-1.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-overlay)] opacity-0 group-hover:opacity-100 transition-all"
-          aria-label="Component options"
-        >
-          <MoreHorizontal size={15} />
-        </button>
-        {menuOpen && (
-          <div className="absolute right-0 mt-1 w-48 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-xl shadow-[var(--shadow-lg)] overflow-hidden z-[200] animate-forge-scale-in">
-            <Link
-              href={`/dashboard/editor/${component.id}`}
-              onClick={() => setMenuOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-overlay)] transition-colors"
-            >
-              <Code2 size={14} className="text-[var(--text-secondary)]" />
-              Open Editor
-            </Link>
-            <button
-              onClick={() => { setMenuOpen(false); onDelete(component); }}
-              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--error)] hover:bg-[var(--error-subtle)] transition-colors"
-            >
-              <Trash2 size={14} />
-              Delete
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── Component Row (List view) ────────────────────────────────────────────────
-
-function ComponentRow({ component, onDelete, index, status = 'draft' }: ComponentCardProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  return (
-    <div
-      className="group relative flex items-center gap-4 px-4 py-3.5 rounded-xl border border-[var(--border-subtle)] hover:border-[var(--border-default)] bg-[var(--bg-elevated)] transition-all cursor-pointer"
-      style={{ animationDelay: `${Math.min(index, 8) * 30}ms` }}
-    >
-      <Link href={`/dashboard/editor/${component.id}`} className="flex items-center gap-4 flex-1 min-w-0">
-        {/* Icon */}
-        <div className="w-8 h-8 rounded-lg bg-[var(--forge-fire)] flex items-center justify-center flex-shrink-0">
-          <Zap size={14} className="text-[var(--forge-primary)]" />
-        </div>
-
-        {/* Name + label */}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-[var(--forge-primary)] transition-colors truncate">
-            {component.name}
-          </p>
-          {component.master_label && component.master_label !== component.name && (
-            <p className="text-xs text-[var(--text-tertiary)] truncate">{component.master_label}</p>
-          )}
-        </div>
-
-        {/* Status */}
-        <div className="hidden sm:flex flex-shrink-0">
-          <DeployStatusPill status={status} />
-        </div>
-
-        {/* Meta */}
-        <div className="hidden md:flex items-center gap-1 text-xs text-[var(--text-tertiary)] flex-shrink-0 w-28 justify-end">
-          <Clock size={10} />
-          {component.updated_at
-            ? formatDistanceToNow(new Date(component.updated_at), { addSuffix: true })
-            : '—'}
-        </div>
-
-        {/* Version */}
-        {component.api_version && (
-          <span
-            className="hidden lg:block text-[10px] text-[var(--text-tertiary)] font-code px-1.5 py-0.5 rounded flex-shrink-0"
-            style={{ background: 'var(--bg-overlay)', border: '0.5px solid var(--border-subtle)' }}
-          >
-            v{component.api_version}
-          </span>
-        )}
-      </Link>
-
-      {/* Overflow menu */}
-      <div onClick={(e) => e.preventDefault()} className="flex-shrink-0">
-        <button
-          onClick={() => setMenuOpen((v) => !v)}
-          className="p-1.5 rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-overlay)] opacity-0 group-hover:opacity-100 transition-all"
-          aria-label="Component options"
-        >
-          <MoreHorizontal size={15} />
-        </button>
-        {menuOpen && (
-          <div className="absolute right-4 mt-1 w-48 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded-xl shadow-[var(--shadow-lg)] overflow-hidden z-[200] animate-forge-scale-in">
-            <Link
-              href={`/dashboard/editor/${component.id}`}
-              onClick={() => setMenuOpen(false)}
-              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-overlay)] transition-colors"
-            >
-              <Code2 size={14} className="text-[var(--text-secondary)]" />
-              Open Editor
-            </Link>
-            <button
-              onClick={() => { setMenuOpen(false); onDelete(component); }}
-              className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[var(--error)] hover:bg-[var(--error-subtle)] transition-colors"
-            >
-              <Trash2 size={14} />
-              Delete
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// Deprecated inline ComponentCard and ComponentRow replaced with standard imports,
+// Keeping SkeletonCard untouched for loading states.
 
 // ─── Stats Row ────────────────────────────────────────────────────────────────
 
@@ -575,6 +406,8 @@ function DashboardContent() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Component | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const cols = useResponsiveColumns();
 
   useEffect(() => {
     if (searchParams.get('new') === '1') setShowCreateModal(true);
@@ -591,7 +424,7 @@ function DashboardContent() {
         supabase.from('salesforce_connections').select('id').eq('user_id', user.id).maybeSingle(),
         supabase
           .from('components')
-          .select('id, name, master_label, api_version, created_at, updated_at')
+          .select('id, name, master_label, api_version, created_at, updated_at, html_content, css_content')
           .eq('user_id', user.id)
           .order('updated_at', { ascending: false }),
       ]);
@@ -606,8 +439,8 @@ function DashboardContent() {
           .then((d) => { if (d.used !== undefined) setApiUsage({ used: d.used, limit: d.limit }); })
           .catch(() => {});
       }
-    } catch (err) {
-      console.error('[Dashboard] Load error:', err);
+    } catch {
+      // Load failed — user sees empty state
     } finally {
       setIsLoading(false);
     }
@@ -682,8 +515,7 @@ function DashboardContent() {
     <div className="min-h-screen bg-[var(--bg-void)] flex flex-col">
       {!isLoading && !isOrgConnected && <OrgDisconnectedBanner />}
 
-      <TopNavbar
-        variant="dashboard"
+      <DashboardNavbar
         user={user}
         orgStatus={isOrgConnected ? 'connected' : 'disconnected'}
         apiUsage={apiUsage ?? undefined}
@@ -872,21 +704,28 @@ function DashboardContent() {
                 </div>
 
                 {viewMode === 'grid' ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {filteredComponents.map((c, i) => (
-                      <ComponentCard
-                        key={c.id}
-                        component={c}
-                        onDelete={setDeleteTarget}
-                        index={i}
-                        status={getComponentStatus(c, components.indexOf(c))}
-                      />
-                    ))}
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap: '16px', alignItems: 'start', width: '100%' }}>
+                    {Array.from({ length: cols }).map((_, colIndex) => {
+                      const colItems = filteredComponents.filter((_, i) => i % cols === colIndex);
+                      return (
+                        <div key={colIndex} className="flex flex-col gap-4 w-full min-w-0">
+                          {colItems.map((c, i) => (
+                            <ComponentCard
+                              key={c.id}
+                              component={c}
+                              onDelete={setDeleteTarget}
+                              index={colIndex + i * cols}
+                              status={getComponentStatus(c, components.indexOf(c))}
+                            />
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">
                     {filteredComponents.map((c, i) => (
-                      <ComponentRow
+                      <ComponentListRow
                         key={c.id}
                         component={c}
                         onDelete={setDeleteTarget}

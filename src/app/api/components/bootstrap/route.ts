@@ -52,7 +52,6 @@ export async function POST() {
       .single();
 
     if (compError || !component) {
-      console.error('[bootstrap] Component creation error:', compError);
       return NextResponse.json({ error: 'Component creation failed' }, { status: 500 });
     }
 
@@ -61,8 +60,7 @@ export async function POST() {
       componentId: component.id,
       message: 'Created starter component',
     });
-  } catch (err) {
-    console.error('[bootstrap] Crash:', err);
+  } catch {
     return NextResponse.json({ error: 'Server Error' }, { status: 500 });
   }
 }

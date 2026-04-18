@@ -92,7 +92,6 @@ export async function POST(request: Request) {
     if (!conn) return NextResponse.json({ error: 'No Salesforce connection found' }, { status: 404 });
 
     // ── Build LWC metadata zip ────────────────────────────────────────────
-    console.log('[deploy] ZIP build start');
     const zip = new JSZip();
 
     const apiVersion = component.api_version || '62.0';
@@ -206,11 +205,6 @@ ${description}${targetXml}
     folder.file(`${componentName}.js-meta.xml`, metaXmlContent);
 
     const zipBase64 = await zip.generateAsync({ type: 'base64' });
-    console.log('[deploy] ZIP build complete, base64 length:', zipBase64.length);
-    
-    // Log files in zip for debugging
-    const filesInZip = Object.keys(zip.files);
-    console.log('[deploy] Files being sent in ZIP:', filesInZip.join(', '));
 
     // ── Initiate Metadata API deploy ─────────────────────────────────────
     const deploySoap = `<?xml version="1.0" encoding="utf-8"?>
@@ -238,9 +232,6 @@ ${description}${targetXml}
   </soapenv:Body>
 </soapenv:Envelope>`;
 
-    const startTime = Date.now();
-    console.log('[deploy] SOAP request sent at:', startTime);
-
     const deployRes = await fetch(SF_METADATA_URL(conn.instance_url), {
       method: 'POST',
       headers: {
@@ -251,10 +242,8 @@ ${description}${targetXml}
     });
 
     const deployText = await deployRes.text();
-    console.log('[deploy] SOAP response received at:', Date.now(), 'status:', deployRes.status);
     const idMatch = deployText.match(/<id>([a-zA-Z0-9]+)<\/id>/);
     if (!idMatch) {
-      console.error('[Deploy] Failed to initiate:', deployText);
       return NextResponse.json(
         { error: 'Deploy failed to initiate', details: deployText },
         { status: 500 }
@@ -281,7 +270,6 @@ ${description}${targetXml}
     });
 
   } catch (err: unknown) {
-    console.error('[Deploy] Crash:', err);
     if (err instanceof Error && err.name === 'REAUTH_REQUIRED') {
       return NextResponse.json({ error: 'REAUTH_REQUIRED' }, { status: 401 });
     }

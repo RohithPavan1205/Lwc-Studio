@@ -43,7 +43,6 @@ export async function POST(request: Request) {
       .select('id');
 
     if (updateError) {
-      console.error('[save] Component update error:', updateError);
       return NextResponse.json({ error: 'Failed to update component' }, { status: 500 });
     }
 
@@ -63,16 +62,11 @@ export async function POST(request: Request) {
     });
 
     if (versionError) {
-      console.error(
-        '[save] Version snapshot failed (non-fatal):',
-        JSON.stringify(versionError, null, 2)
-      );
       // Non-fatal — save succeeded, versioning is best-effort
     }
 
     return NextResponse.json({ success: true, componentId: id });
   } catch (err: unknown) {
-    console.error('[save] Unexpected crash:', err);
     const message = err instanceof Error ? err.message : 'Unknown server error';
     return NextResponse.json({ error: message }, { status: 500 });
   }

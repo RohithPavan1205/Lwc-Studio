@@ -8,7 +8,6 @@ interface EditorPageProps {
 
 export default async function EditorPage({ params }: EditorPageProps) {
   const { componentId } = params;
-  console.log('[Page] Loading componentId:', componentId);
 
   // ── 1. Auth check ─────────────────────────────────────────────────────────
   const supabase = createClient();

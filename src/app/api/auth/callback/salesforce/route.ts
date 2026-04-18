@@ -28,7 +28,6 @@ export async function GET(request: Request) {
   // ── CSRF state validation ─────────────────────────────────────────────────
   const storedState = cookieStore.get('oauth_state')?.value;
   if (!storedState || storedState !== stateParam) {
-    console.error('[SF CALLBACK] CSRF state mismatch');
     errorUrl.searchParams.set('error', 'invalid_state');
     return NextResponse.redirect(errorUrl.toString());
   }
@@ -52,7 +51,6 @@ export async function GET(request: Request) {
 
   try {
     // ── Exchange code for tokens ──────────────────────────────────────────
-    console.log('[SF CALLBACK] Exchanging code for tokens...');
     const tokenResponse = await fetch(`${sfLoginUrl}/services/oauth2/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -69,13 +67,11 @@ export async function GET(request: Request) {
     const tokenData = await tokenResponse.json();
 
     if (!tokenResponse.ok) {
-      console.error('[SF CALLBACK] Salesforce Token Error:', tokenData);
       errorUrl.searchParams.set('error', 'token_exchange_failed');
       return NextResponse.redirect(errorUrl.toString());
     }
 
     const { access_token, refresh_token, instance_url, id: identity_url } = tokenData;
-    console.log('[SF CALLBACK] Tokens received. Identity URL:', identity_url);
 
     // ── Fetch Salesforce user identity ────────────────────────────────────
     let userInfo;
@@ -86,12 +82,11 @@ export async function GET(request: Request) {
       userInfo = await userInfoResponse.json();
 
       if (!userInfoResponse.ok) {
-        console.error('[SF CALLBACK] Salesforce Identity Error:', userInfo);
         errorUrl.searchParams.set('error', 'user_info_failed');
         return NextResponse.redirect(errorUrl.toString());
       }
     } catch (e) {
-      console.error('[SF CALLBACK] Salesforce Identity Fetch Exception:', e);
+      void e;
       errorUrl.searchParams.set('error', 'user_info_failed');
       return NextResponse.redirect(errorUrl.toString());
     }
@@ -102,16 +97,14 @@ export async function GET(request: Request) {
     const org_id = userInfo.organization_id as string;
 
     if (!email) {
-      console.error('[SF CALLBACK] No email returned from Salesforce identity');
       errorUrl.searchParams.set('error', 'no_email');
       return NextResponse.redirect(errorUrl.toString());
     }
 
-    console.log('[SF CALLBACK] User identified:', email);
+
 
     const adminClient = createAdminClient();
     if (!adminClient) {
-      console.error('[SF CALLBACK] Supabase Admin Client Failed to Initialize');
       errorUrl.searchParams.set('error', 'supabase_admin_missing');
       return NextResponse.redirect(errorUrl.toString());
     }
@@ -139,32 +132,27 @@ export async function GET(request: Request) {
     }
 
     if (userId) {
-      console.log('[SF CALLBACK] Found existing user:', userId);
       // Rotate the shadow password so we can sign in fresh
       const { error: updateError } = await adminClient.auth.admin.updateUserById(userId, {
         password: tempPassword,
         email_confirm: true,
       });
       if (updateError) {
-        console.error('[SF CALLBACK] Auth Update Error:', updateError);
         throw updateError;
       }
     } else {
-      console.log('[SF CALLBACK] Creating new auth user for:', email);
       const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email,
         password: tempPassword,
         email_confirm: true,
       });
       if (createError) {
-        console.error('[SF CALLBACK] Auth Creation Error:', createError);
         throw createError;
       }
       userId = newUser.user.id;
     }
 
     // ── Establish SSR session via cookie ──────────────────────────────────
-    console.log('[SF CALLBACK] Establishing session...');
     const supabase = createClient();
     if (supabase) {
       const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -172,7 +160,6 @@ export async function GET(request: Request) {
         password: tempPassword,
       });
       if (signInError) {
-        console.error('[SF CALLBACK] Session Establishment Error:', signInError);
         throw signInError;
       }
     }
@@ -194,7 +181,6 @@ export async function GET(request: Request) {
 
     // ── Deploy Lightning App Page (LWC_Studio_Preview) ────────────────────
     try {
-      console.log('[SF CALLBACK] Deploying LWC_Studio_Preview App Page...');
       const zip = new JSZip();
       
       const flexipageXML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -267,10 +253,10 @@ export async function GET(request: Request) {
           SOAPAction: 'deploy',
         },
         body: deploySoap,
-      }).catch((e) => console.error('[SF CALLBACK] Preview deploy error:', e));
+      }).catch(() => { /* fire-and-forget: non-critical preview deploy */ });
 
-    } catch (e) {
-      console.error('[SF CALLBACK] Failed to build preview page zip:', e);
+    } catch {
+      // Non-critical: preview page deployment failure doesn't block auth
     }
 
     await adminClient.from('salesforce_connections').upsert(
@@ -291,7 +277,6 @@ export async function GET(request: Request) {
     // ── Clean up PKCE and CSRF cookies ────────────────────────────────────
     cookieStore.delete('code_verifier');
     cookieStore.delete('oauth_state');
-    console.log('[SF CALLBACK] Success! Redirecting to dashboard.');
 
     const response = NextResponse.redirect(baseUrl.toString());
     
@@ -301,8 +286,7 @@ export async function GET(request: Request) {
     });
 
     return response;
-  } catch (err) {
-    console.error('[SF CALLBACK] Unexpected error:', err);
+  } catch {
     errorUrl.searchParams.set('error', 'unexpected_error');
     return NextResponse.redirect(errorUrl.toString());
   }

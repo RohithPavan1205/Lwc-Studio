@@ -63,7 +63,7 @@ export function decryptToken(encryptedText: string): string {
     decrypted += decipher.final('utf8');
     return decrypted;
   } catch (error) {
-    console.error('Failed to decrypt token', error);
+    void error;
     throw new Error('Token decryption failed');
   }
 }
